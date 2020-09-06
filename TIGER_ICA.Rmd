@@ -1,0 +1,792 @@
+---
+title: "TIGER_ICA"
+author: "Johanna Walker"
+date: "4/12/2020"
+output: html_document
+---
+
+#Loading Libraries 
+```{r}
+#loading libraries and setting working directory 
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(writexl)
+library(dplyr)
+library(psych)
+library(MASS)
+library(corrplot)
+library(ggplot2)
+library(here)
+
+# setwd("/Users/JWalker/Dropbox/TIGER CURATED/Johanna/TIGER ICA")
+```
+
+
+#Import T1 data sheets
+```{r}
+ICA_T1_DATA<- read.csv("TIGER_ICA_Results_T1.csv", header=T, sep = ',', na.strings=c("999","NaN","-888","888","NA"))
+T1_Behav_DATA<- read.csv("TIGER_ELS_GOLDEN_Curated_3.13.2020.csv", header=T, sep = ',', na.strings=c("NaN","-888","888","NA"))
+T1_interview<- read.csv("T1_interview.csv", header=T, sep=',', na.strings=c("999","NaN","-888","888","NA"))
+
+T1_full_behav<-merge(T1_Behav_DATA,T1_interview,by=c("TIGER_ID"),all=TRUE)
+T1_data<-merge(T1_full_behav,ICA_T1_DATA,by=c("TIGER_ID", "Group"),all=TRUE)
+
+T1_RSFC<-read.csv("TIGER_ELS_Final_RSFC_April2020.csv", header=T, sep = ',', na.strings=c("999","NaN","-888","888","NA"))
+T1_RSFC<-rename(T1_RSFC, "TIGER_ID"="Tiger_ID")
+T1_RSFC<-T1_RSFC[, c("TIGER_ID","motion")]
+T1_data<-merge(T1_data,T1_RSFC,by=c("TIGER_ID"),all=TRUE)
+
+
+
+#T2_Behav_DATA<- read.csv("T2_curated.csv", header=T, sep = ',', na.strings=c("999","NaN","-888","888","NA"))
+
+
+T1_data$Group<-as.factor(T1_data$Group)
+T1_data$Gender<-as.factor(T1_data$Gender)
+T1_data$ID<-as.factor(T1_data$TIGER_ID)
+T1_data$Sex<-as.factor(T1_data$Sex)
+
+#T1_ICA_behav_combo<-merge(T1_data,T2_Behav_DATA,by=c("TIGER_ID", "Group"),all=TRUE)
+
+```
+
+
+
+##Corrplot TIGER T1 ICA
+```{r}
+require("corrplot")
+library(corrplot)
+#more info on corrplot here: http://www.sthda.com/english/wiki/visualize-correlation-matrix-using-correlogram
+
+#select column by names
+
+vars<-c("dmn1","saliency1","PCC1","temporal_ilpfc1","insula_sensorimotor1","mtg_pcc1","CDRSR_total","RADS_total","DERS_total","PHQ9","PHQ9_q9","IAT.dscore","IAT.diff2","SIQ","t1_cssrs_lifetime_total","t1_cssrs_current_total")
+T1_corrdata<-T1_data[vars]
+
+vars<-c("dmn1","saliency1","insula_sensorimotor1","CDRSR_total","PHQ9","PHQ9_q9","IAT.diff2","Age.at.V2","Sex")
+T1_corrdata<-T1_data[vars]
+
+T1_data$Age.at.V2<-as.numeric(T1_data$Age.at.V2)
+T1_data$Sex<-as.numeric(T1_data$Sex)
+
+##Components tested that didn't work:
+##"frontoparietal1","frontoparietal_L1","basal_ganglia1","lpfc1","saliency2","noise2", "frontal1","hippocampus2"
+
+M<-cor(T1_corrdata,method="pearson",use="pairwise.complete.obs") #missing observations dropped automatically per pair
+
+#generating the p-values:
+
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+# matrix of the p-value of the correlation
+p.mat <- cor.mtest(T1_corrdata)
+#head(p.mat[, 1:5]) #this will display first 5 variables
+
+
+#plot the correlation matrix and cross-out those under p<0.05
+par(cex=0.5) #aesthetics - adjust size of correlation est
+corrplot(M,method="number", tl.cex=0.8,tl.srt=70,type="upper", p.mat = p.mat, sig.level = 0.05)  
+
+#Corrlations for TIGER ICA T1:
+#dmn1 -> CDRSR_total, RADS_total, DERS_total, PHQ9, IAT.dscore, IAT.diff2, SIQ
+#saliency1 -> PHQ9_q9
+#PCC1 -> IAT.diff2
+#temporal_ilpfc1 -> RADS_total, PHQ9_q9, SIQ, CSSRS_curr
+#mtg_pcc1 -> CDRSR_total, RADS_total, PHQ9, PHQ9_q9
+```
+
+###ALL GROUP DIFFERENCES + DEMO/CLINICAL STATS
+```{r}
+T1_data$PHQ8<-T1_data$PHQ9-T1_data$PHQ9_q9
+DATA_USEDsub<-subset(T1_data, !is.na(dmn1))
+MDD_USEDsub<-subset(DATA_USEDsub, Group=="MDD")
+CTL_USEDsub<-subset(DATA_USEDsub, Group=="CTL")
+
+summary(DATA_USEDsub$Group) #CTL = 21, MDD = 49
+summary(MDD_USEDsub$Sex) #male = 15, female = 34
+summary(CTL_USEDsub$Sex) #male = 9, female = 12
+sextbl=table(DATA_USEDsub$Group, DATA_USEDsub$Sex)
+chisq.test(sextbl) #no difference in sex distribution - p=0.475
+
+table(DATA_USEDsub$Race)
+#1  2  3  5  6  7 
+#2 17  2 33 12  4 
+table(MDD_USEDsub$Race) 
+# 1  2  3  5  6  7 
+# 2  9  2 24  9  3 
+table(CTL_USEDsub$Race)
+#2 5 6 7 
+#8 9 3 1
+racetbl=table(DATA_USEDsub$Group, DATA_USEDsub$Race)
+chisq.test(racetbl) #no difference in sex distribution - p=0.4965
+#X-squared = 4.3774, df = 5, p-value = 0.4965
+
+MDD_SI<-subset(MDD_USEDsub, SI_Group=="si")
+MDD_NoSI<-subset(MDD_USEDsub, SI_Group=="dep")
+
+table(MDD_USEDsub$Ethnicity) #hispanic = 9, non hispanic = 40
+table(CTL_USEDsub$Ethnicity) #hispanic = 1, non hispanic = 20
+ethtbl=table(DATA_USEDsub$Group, DATA_USEDsub$Ethnicity)
+chisq.test(ethtbl) #no difference in sex distribution - p=0.2636
+
+table(MDD_USEDsub$Current_Med_Psychosocial) #med = 24, no med = 25
+table(CTL_USEDsub$Current_Med_Psychosocial) #no med 21
+medtbl=table(DATA_USEDsub$Group, DATA_USEDsub$Current_Med_Psychosocial)
+chisq.test(medtbl) #no difference in sex distribution - p=0.0002318
+
+table(MDD_USEDsub$SI_2group) #no SI 21, SI = 28
+table(CTL_USEDsub$SI_2group) #no SI 20, SI = 1
+medtbl=table(DATA_USEDsub$Group, DATA_USEDsub$SI_2group)
+chisq.test(medtbl) 
+
+
+describe(DATA_USEDsub$Age.at.V2)
+#n = 70, mean 16.17 +/- 1.25, 13.59-18.39
+describe(MDD_USEDsub$Age.at.V2)
+# n = 49, mean 16.26 +/- 1.33, 13.67-18.39
+describe(CTL_USEDsub$Age.at.V2)
+# n = 21, mean 15.96 +/- 1.06, 13.59-17.51
+t.test(MDD_USEDsub$Age.at.V2,CTL_USEDsub$Age.at.V2,var.equal=TRUE)
+#no difference in age distribution - p=0.3632
+
+describe(DATA_USEDsub$IAT.diff2)
+#n = 69, mean -0.14 +/- 0.24, -1 - 0.32
+describe(MDD_USEDsub$IAT.diff2)
+# n = 48, mean -0.14 +/- 0.26, -1 - 0.32
+describe(CTL_USEDsub$IAT.diff2)
+# n = 21, mean -0.13 +/- 0.22, -0.86 - 0.1
+t.test(MDD_USEDsub$IAT.diff2,CTL_USEDsub$IAT.diff2,var.equal=TRUE)
+#no difference in IAT distribution - p=0.961
+
+describe(MDD_USEDsub$motion)
+# n = 49, mean 0.05 +/- 0.02, 0.02 - 0.09
+describe(CTL_USEDsub$motion)
+# n = 21, mean  0.06+/- 0.02, 0.03-0.11
+t.test(MDD_USEDsub$motion,CTL_USEDsub$motion,var.equal=TRUE)
+#no difference in age distribution - p=0.03961
+
+describe(MDD_USEDsub$motion)
+# n = 49, mean 0.05 +/- 0.02, 0.02 - 0.09
+describe(CTL_USEDsub$motion)
+# n = 21, mean  0.06+/- 0.02, 0.03-0.11
+t.test(MDD_USEDsub$motion,CTL_USEDsub$motion,var.equal=TRUE)
+#no difference in age distribution - p=0.03961
+
+
+DATA_USEDsub$CDRSR_total<-as.numeric(DATA_USEDsub$CDRSR_total)
+describe(DATA_USEDsub$CDRSR_total)
+#n = 70, mean 38.74 +/- 17.17, 17 - 81
+describe(MDD_USEDsub$CDRSR_total)
+# n = 49, mean 47.73 +/- 12.16, 26 - 81
+describe(CTL_USEDsub$CDRSR_total)
+# n = 21, mean 17.76 +/- 1.34, 17 - 21
+t.test(MDD_USEDsub$CDRSR_total,CTL_USEDsub$CDRSR_total,var.equal=TRUE)
+#difference in depression distribution - p < 2.2e-16
+
+describe(DATA_USEDsub$PHQ9)
+#n = 70, mean 9.76 +/- 7.35, 0 - 23
+describe(MDD_USEDsub$PHQ9)
+# n = 49, mean 13.57 +/- 5.24, 6 - 23
+describe(CTL_USEDsub$PHQ9)
+# n = 21, mean 0.86 +/- 1.35, 0 - 5
+t.test(MDD_USEDsub$PHQ9,CTL_USEDsub$PHQ9,var.equal=TRUE)
+#difference in depression distribution - p < 2.2e-16
+
+describe(DATA_USEDsub$PHQ9_q9)
+#n = 70, mean 0.57 +/- 0.86, 0 - 3
+describe(MDD_USEDsub$PHQ9_q9)
+# n = 49, mean 0.82 +/- 0.93, 0 - 3
+describe(CTL_USEDsub$PHQ9_q9)
+# n = 21, mean 0 +/- 0, 0 - 0
+t.test(MDD_USEDsub$PHQ9_q9,CTL_USEDsub$PHQ9_q9,var.equal=TRUE)
+#difference in PHQ_q9 distribution - p < 0.0001514
+
+describe(DATA_USEDsub$SIQ)
+#n = 70, mean 17.8 +/- 17.66, 0 - 76
+describe(MDD_USEDsub$SIQ)
+# n = 49, mean 24.55 +/- 17, 3 - 76
+describe(CTL_USEDsub$SIQ)
+# n = 21, mean 2.05 +/- 3.25, 0 - 15
+t.test(MDD_USEDsub$SIQ,CTL_USEDsub$SIQ,var.equal=TRUE)
+#difference in SIQ distribution - p = 8.62e-08
+
+describe(DATA_USEDsub$Interval_V1_V2)
+describe(MDD_USEDsub$Interval_V1_V2)
+# n = 49, mean 11.02 +/- 6.14, 1 - 29
+describe(CTL_USEDsub$Interval_V1_V2)
+# n = 21, mean 11.19 +/- 5.89, 1- 23
+t.test(MDD_USEDsub$Interval_V1_V2,CTL_USEDsub$Interval_V1_V2,var.equal=TRUE)
+#difference in SIQ distribution - p = 0.9147
+
+describe(MDD_USEDsub$t1_cssrs_current_total)
+# n = 49, mean 0.86 +/- 1.54, 0 - 5
+describe(CTL_USEDsub$t1_cssrs_current_total)
+# n = 21, mean 0 +/- 0, 0- 0
+t.test(MDD_USEDsub$t1_cssrs_current_total,CTL_USEDsub$t1_cssrs_current_total,var.equal=TRUE)
+#difference in CSSRS distribution - p = 0.01344
+
+wilcox.test()
+
+table(MDD_USEDsub$NSSI)
+# n = 49, 0 - 20, 1 - 29
+table(CTL_USEDsub$NSSI)
+# n = 21, 0 - 21
+nssitbl=table(DATA_USEDsub$Group, DATA_USEDsub$NSSI)
+chisq.test(nssitbl) 
+#p-value = 1.414e-05
+
+table(MDD_USEDsub$Hx.Attempt)
+# n = 49, 0 - 37, 1 - 12
+table(CTL_USEDsub$Hx.Attempt)
+# n = 21, 0 - 21
+attempttbl=table(DATA_USEDsub$Group, DATA_USEDsub$Hx.Attempt)
+chisq.test(attempttbl) 
+#p-value = 0.03193
+
+
+boxplot(DATA_USEDsub$Age.at.V2 ~ T1_data$Group)
+boxplot(DATA_USEDsub$PHQ9 ~ T1_data$Group)
+boxplot(DATA_USEDsub$SIQ ~ T1_data$Group)
+boxplot(DATA_USEDsub$dmn1 ~ T1_data$Group)
+boxplot(DATA_USEDsub$saliency1 ~ T1_data$Group)
+boxplot(DATA_USEDsub$ ~ T1_data$Group)
+
+#T1_males<-subset(T1_data,Sex=="1")
+#T1_females<-subset(T1_data,Sex=="2")
+#T1_MDD<-subset(T1_data,Group=="MDD")
+#T1_CTL<-subset(T1_data,Group=="CTL")
+
+View(DATA_USEDsub$Current_Meds_Psychosocial)
+
+
+
+
+describe(MDD_USEDsub$dmn1)
+# n = 49, mean 4.14 +/- 0.62, 2.87 - 5.54
+describe(CTL_USEDsub$dmn1)
+# n = 21, mean 4.57 +/- 0.52, 3.58 - 5.61
+t.test(MDD_USEDsub$dmn1,CTL_USEDsub$dmn1,var.equal=TRUE) 
+
+describe(MDD_USEDsub$saliency1)
+# n = 49, mean 4.11 +/- 0.76, 2.79 - 5.46
+describe(CTL_USEDsub$saliency1)
+# n = 21, mean 4.24 +/- 0.55, 3.25 - 5.36
+t.test(MDD_USEDsub$saliency1,CTL_USEDsub$saliency1,var.equal=TRUE) 
+
+describe(MDD_USEDsub$insula_sensorimotor1)
+# n = 49, mean 3.71 +/- 0.78, 2.14 - 5.79
+describe(CTL_USEDsub$insula_sensorimotor1)
+# n = 21, mean 4.3 +/- 0.91, 3.09 - 5.36
+t.test(MDD_USEDsub$insula_sensorimotor1,CTL_USEDsub$insula_sensorimotor1,var.equal=TRUE) 
+
+describe(MDD_USEDsub$PCC1)
+# n = 49, mean 4.73 +/- 0.87, 3.15 - 6.57
+describe(CTL_USEDsub$PCC1)
+# n = 21, mean 5 +/- 0.77, 3.43 - 6.28
+t.test(MDD_USEDsub$PCC1,CTL_USEDsub$PCC1,var.equal=TRUE) 
+#p-value = 0.2281
+
+describe(MDD_USEDsub$hippocampus1)
+# n = 49, mean 4.17 +/- 0.75, 2.62 - 6.45
+describe(CTL_USEDsub$hippocampus1)
+# n = 21, mean 4.28 +/- 0.59, 3.31 - 5.25
+t.test(MDD_USEDsub$hippocampus1,CTL_USEDsub$hippocampus1,var.equal=TRUE) 
+#p-value = 0.5614
+
+describe(MDD_USEDsub$frontoparietal1)
+# n = 49, mean 3.32 +/- 0.6, 2 - 4.64
+describe(CTL_USEDsub$frontoparietal1)
+# n = 21, mean 3.29 +/- 0.47, 2.37 - 4.17
+t.test(MDD_USEDsub$frontoparietal1,CTL_USEDsub$frontoparietal1,var.equal=TRUE) 
+#p-value = 0.825
+
+
+describe(MDD_USEDsub$frontoparietal_L1)
+# n = 49, mean 3.93 +/- 0.59, 2.67 - 5.54
+describe(CTL_USEDsub$frontoparietal_L1)
+# n = 21, mean 3.96 +/- 0.7, 2.71 - 5.26
+t.test(MDD_USEDsub$frontoparietal_L1,CTL_USEDsub$frontoparietal_L1,var.equal=TRUE) 
+#p-value = 0.8767
+
+describe(MDD_USEDsub$noise1)
+# n = 49, mean 2.84 +/- 0.68, 1.16 - 4.08
+describe(CTL_USEDsub$noise1)
+# n = 21, mean 3.06+/- 0.53, 1.95-3.83
+t.test(MDD_USEDsub$noise1,CTL_USEDsub$noise1,var.equal=TRUE) 
+
+t.test(MDD_USEDsub$dmn1,CTL_USEDsub$dmn1,var.equal=TRUE) #no difference in age - p=0.007727
+t.test(MDD_USEDsub$saliency1,CTL_USEDsub$saliency1,var.equal=TRUE) #difference in saliency1 - p=0.4803
+t.test(MDD_USEDsub$saliency2,CTL_USEDsub$saliecy2,var.equal=TRUE) #difference in saliency2 - p=2.2e-16
+t.test(MDD_USEDsub$insula_sensorimotor1,CTL_USEDsub$insula_sensorimotor1,var.equal=TRUE) #difference in insula_sensorimotor1 - p=0.007383
+```
+
+##Testing Associations in T1
+```{r}
+library(MASS)
+library(sfsmisc)
+
+##########TIGER SI ICA PAPER MODELS USE############
+
+#IAT and DMN
+#USE THIS MODEL HERE
+m1e<-lm(dmn1 ~ IAT.diff2 + Age.at.V2 + motion + scale(CDRSR_total, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m1e)
+plot(m1e) #super not normal residuals with lm so using rlm
+f.robftest(m1e, var = "dmn1") #F = 8.332, p-value = 0.005355
+
+#THIS IS A BETTER FITTED MODEL - consistent with NSSI groupings model - use this?
+m1e_ivdvswitch<-lm(IAT.diff2 ~ dmn1 + Age.at.V2 + motion + scale(CDRSR_total, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m1e_ivdvswitch)
+plot(m1e_ivdvswitch) #residuals are waaay better here
+f.robftest(m1e_ivdvswitch, var = "IAT.diff2") #F = 10.539, p-value = 0.001887
+
+library(heplots)
+library(lm.beta)
+etasq(m1e_ivdvswitch,type=2)
+
+m1e_ivdvswitch<-lm(SIQ ~ dmn1 + Age.at.V2 + motion + scale(CDRSR_total, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m1e_ivdvswitch)
+
+m1f<-lm(CDRSR_total ~ dmn1 + Age.at.V2 + motion + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m1f)
+
+#SI and SN1 - USING PHQ9
+m2c<-rlm(PHQ9_q9 ~ saliency1 + Age.at.V2 + motion + scale(CDRSR_noSI.y, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m2c)
+plot(m2c) #residuals are meh
+f.robftest(m2c, var = "saliency1") #F = 8.681, p-value = 0.004503
+
+#model consistent with NSSI groupings and better fit
+m2c_ivdvswitch<-rlm(saliency1 ~ PHQ9_q9 +Age.at.V2 + motion + scale(CDRSR_noSI.y, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m2c_ivdvswitch)
+plot(m2c_ivdvswitch) #residuals are definitely better
+f.robftest(m2c_ivdvswitch, var = "PHQ9_q9") #F = 6.1746, p-value = 0.01563
+
+m2c_ivdvswitch<-rlm(saliency1 ~ SIQ +Age.at.V2 + motion + scale(CDRSR_noSI.y, scale = F) + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(m2c_ivdvswitch)
+f.robftest(m2c_ivdvswitch, var = "SIQ")
+
+#SI AND SN1 - USING 3 GROUPS
+
+T1_data$SI_group <- as.factor(T1_data$SI_group) #order is 1 2 3
+levels(T1_data$SI_group) <- c("HC", "DEP", "SI")
+T1_data$SI_group #Order is HC, DEP, SI
+T1_data$SI_group <- relevel(T1_data$SI_group, ref = "DEP")
+T1_data$SI_group <- relevel(T1_data$SI_group, ref = "SI")
+levels(T1_data$SI_group) #level order: SI, DEP, HC
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(T1_data$SI_group)<-my.simple #SI_Group2 is comparing SI to DEP, S1_Group3 is comparing SI to HC
+contrasts(T1_data$SI_group)
+#              2          3
+#SI  -0.3333333 -0.3333333
+#HC   0.6666667 -0.3333333
+#DEP -0.3333333  0.6666667
+
+modICA <- lm(saliency1 ~ SI_group+ Age.at.V2 + Sex + motion + Current_Med_Psychosocial,T1_data)
+summary(modICA) #not significant when comparing to SI- need to plot to visualize
+
+
+#Level order is SI, HC, DEP
+
+plottingSN1 <- subset(T1_data, !is.na(T1_data$SI_group))
+plottingSN1$SI_group <- relevel(plottingSN1$SI_group, ref = "DEP")
+plottingSN1$SI_group <- relevel(plottingSN1$SI_group, ref = "SI")
+#now its SI, DEP, HC
+
+ggplot(plottingSN1, aes(SI_group, saliency1))+geom_violin(aes(fill=SI_group))+geom_point()+ JWtheme+ylab("SN1 Network Coherence")+xlab("Diagnostic Group")+scale_fill_discrete(name = "Diagnostic Group", labels = c("SI+", "SI-", "CTL"))+ scale_x_discrete(labels=c("HC" = "CTL", "DEP" = "SI-", "SI" = "SI+")) 
+
+ggplot(ICA_Gold, aes(Group_Comp, insula_sensorimotor1))+geom_violin(aes(fill=Group_Comp))+geom_point() + JWtheme+ylab("SN-Ins Network Coherence")+xlab("Diagnostic Group")+scale_fill_discrete(name = "Diagnostic Group", labels = c("MDD with NSSI", "MDD without NSSI", "Healthy Control"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "MDD without NSSI", "nssi" = "MDD with NSSI")) 
+
+
+#running again with HC as reference to see if diff from dep
+T1_data$SI_group <- relevel(T1_data$SI_group, ref = "HC")
+levels(T1_data$SI_group) #level order: HC, SI, DEP
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(T1_data$SI_group)<-my.simple #SI_Group2 is comparing HC to SI, S1_Group3 is comparing HC to DEP
+contrasts(T1_data$SI_group)
+#             2          3
+#HC  -0.3333333 -0.3333333
+#SI   0.6666667 -0.3333333
+#DEP -0.3333333  0.6666667
+
+modICA <- lm(saliency1 ~ SI_group+ Age.at.V2 + Sex + motion + Current_Med_Psychosocial,T1_data)
+summary(modICA) #also not different
+
+```
+
+##Visualizing T1 ICA 
+```{r}
+JWtheme<-theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.line=element_line(colour="black", size=1), text=element_text(size=15, family="serif"), axis.title.x=element_text(face="bold",size=15, family="serif"), axis.title.y=element_text(face="bold",size=15, family="serif"))+
+      theme(axis.text.x = element_text(colour="grey20",size=15,angle=0,hjust=.5,vjust=.5,face="plain", family="serif"),
+            axis.text.y = element_text(colour="grey20",size=15,angle=0,hjust=1,vjust=0,face="plain", family="serif"), 
+            axis.title.x = element_text(colour="grey20",size=15,angle=0,hjust=.5,vjust=0,face="plain", family="serif"),
+            axis.title.y = element_text(colour="grey20",size=15,angle=90,hjust=.5,vjust=.5,face="plain", family="serif"),
+            title=element_text(colour="black",size=15,face="plain", family="serif"))
+
+############T1 DMN IAT################
+#positively associated
+plotlabels1 <- list(xlab("DMN Coherence"), 
+                    ylab("IAT - Implicit SI"), 
+                    ggtitle("DMN Coherence and Implicit SI"))
+plot_IAT_DMN <- ggplot(MDD_USEDsub, aes(x=dmn1,y=IAT.diff2)) + stat_smooth(method=rlm, size=5, color = 'firebrick') + geom_point(size=4) + JWtheme + plotlabels1 
+print(plot_IAT_DMN)
+
+#IV DV SWITCH
+plotlabels1 <- list(xlab("IAT - Implicit SI"), 
+                    ylab("DMN Coherence"), 
+                    ggtitle("DMN Coherence and Implicit SI"))
+plot_IAT_DMN <- ggplot(MDD_USEDsub, aes(x=IAT.diff2,y=dmn1)) + stat_smooth(method=rlm, size=3, color = 'firebrick') + geom_point(size=3) + JWtheme + plotlabels1 
+print(plot_IAT_DMN)
+
+###########T1 Saliency PHQ9_q9###############
+#negatively associated
+plotlabels2 <- list(xlab("SN Coherence"), 
+                    ylab("PHQ9-Q9 - SI"), 
+                    ggtitle("Salience Network Coherence and SI"))
+plot_Saliency_PHQ9Q9 <- ggplot(MDD_USEDsub, aes(x=saliency1,y=PHQ9_q9)) + stat_smooth(method=rlm, size=5, color = 'firebrick') + geom_point(size=4) + JWtheme + plotlabels2 
+print(plot_Saliency_PHQ9Q9)
+
+#IV DV SWITCH
+plotlabels2 <- list(xlab("PHQ9-Q9 - SI"), 
+                    ylab("SN Coherence"), 
+                    ggtitle("Salience Network Coherence and SI"))
+plot_Saliency_PHQ9Q9 <- ggplot(MDD_USEDsub, aes(x=PHQ9_q9,y=saliency1)) + stat_smooth(method=rlm, size=3, color = 'firebrick') + geom_point(size=2) + JWtheme + plotlabels2 
+print(plot_Saliency_PHQ9Q9)
+```
+
+##USING GIANA'S CODE
+```{r}
+
+```
+
+
+
+##Multinomial logit model with 3 group - SI, MDD no SI, CTL
+```{r}
+library(foreign)
+library(nnet)
+library(stargazer)
+
+#SI_group = 3 - SI, 2 - MDD No SI, 1 - CTL No SI  ### TOOK OUT 107 and worked better - read in TIGER_ELS_GOLDEN_Curated_3.13.2020_no107.csv instead of regular sheet for this
+
+Veiw(DATA_USEDsub$SI_group)
+T1_data$SI_group<- as.factor(T1_data$SI_group)
+
+#m1c<-rlm(IAT.diff2 ~ dmn1 + Age.at.V2 + Group + motion + scale(PHQ8, scale = F) + Current_Med_Psychosocial,data=T1_data)
+#summary(m1c)
+#f.robftest(m1c, var = "dmn1") #without 107 - pvalue = 0.009614
+
+T1_data$SI_group <- relevel(T1_data$SI_group, ref = 3)
+
+multi1 = multinom(SI_group ~ saliency1 + Age.at.V2 + motion + Current_Med_Psychosocial + Sex,data=T1_data)
+summary(multi1)
+
+stargazer(multi1, type="text", out="multi1.htm")
+
+ggplot(T1_data, aes(SI_group, saliency1))+geom_boxplot(aes(color=SI_group))+JWtheme+ylab("Salience ICA")+xlab("SI Group")
+
+z <- summary(multi1)$coefficients/summary(multi1)$standard.errors
+z
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+
+##Multinomial logit model with 2 group - SI, no SI
+```{r}
+library(foreign)
+library(nnet)
+library(stargazer)
+
+DATA_USEDsub$SIgroup<-ifelse(!is.na(DATA_USEDsub$Age_First_SI),1,0)
+DATA_USEDsub$SIgroup<-as.factor(DATA_USEDsub$SIgroup)
+#MDD<-subset(DATA, Group=="MDD")
+#onlySI<-subset(MDD, !is.na(Age_First_SI))
+#noSI<-subset(MDD,is.na(Age_First_SI))
+
+T1_data$SI_group<- as.factor(T1_data$SIgroup)
+
+#m1c<-rlm(IAT.diff2 ~ dmn1 + Age.at.V2 + Group + motion + scale(PHQ8, scale = F) + Current_Med_Psychosocial,data=T1_data)
+#summary(m1c)
+#f.robftest(m1c, var = "dmn1") #without 107 - pvalue = 0.009614
+
+#T1_data$SIgroup <- relevel(T1_data$SI_group, ref = "1")
+
+binom1 = glm(SIgroup ~ saliency1 + Age.at.V2 + motion + Current_Med_Psychosocial + scale(CDRSR_total, scale = F),data=T1_data, family=binomial)
+summary(binom1)
+
+ggplot(ICA_Gold, aes(KSADS_NSSIGroup, insula_sensorimotor1))+geom_boxplot(aes(color=KSADS_NSSIGroup))+tifftheme+ylab("Somatosensory ICA")+xlab("NSSI Group")
+
+view(DATA_USEDsub$SIgroup)
+
+stargazer(multi1, type="text", out="multi1.htm")
+
+ggplot(T1_data, aes(SI_group, dmn1))+geom_boxplot(aes(color=SI_group))+JWtheme+ylab("DMN ICA")+xlab("SI Group")
+
+z <- summary(multi1)$coefficients/summary(multi1)$standard.errors
+z
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+
+#####Below is for another ICA paper (AKA T2, and predicting T2 from T1)#####
+
+##Testing Associations in T2
+```{r}
+library(MASS)
+library(sfsmisc)
+#Corrlations for TIGER ICA T2:
+#dmn2 - IAT_d
+#saliency1 - PHQ9
+#kinda close with saliency1 and SIQ - might need to try different analyses to make it work
+
+
+m5a<-summary(lm(dmn2 ~ IAT_d+RADS_total,data=T2_data))
+#            Estimate Std. Error t value Pr(>|t|)  
+#IAT_d         1.2791     0.5353   2.389   0.0226 *  
+#Multiple R-squared:  0.1438,	Adjusted R-squared:  0.1186 
+#F-statistic: 5.709 on 1 and 34 DF,  p-value: 0.02257
+
+#Then ran again and it's:
+#            Estimate Std. Error t value Pr(>|t|)  
+#IAT_d       1.255689   0.545326   2.303   0.0277 *  
+#F-statistic: 2.861 on 2 and 33 DF,  p-value: 0.07145
+
+m5b<-summary(lm(dmn2 ~ IAT_d+PHQ9,data=T2_data))      ### BEST ##PHQ9 better, CDRS is real bad
+#             Estimate Std. Error t value Pr(>|t|)    
+#IAT_d        1.281254   0.544576   2.353   0.0247 *  
+#F-statistic: 2.773 on 2 and 33 DF,  p-value: 0.07709
+
+m5c<-summary(lm(dmn2 ~ IAT_d+PHQ9+Sex,data=T2_data))    ### BEST  ##Age makes it worse
+#             Estimate Std. Error t value Pr(>|t|)    
+#IAT_d        1.28327    0.53923   2.380   0.0234 *   
+#F-statistic: 2.438 on 3 and 32 DF,  p-value: 0.08259
+
+m5d<-summary(lm(dmn2 ~ IAT_d+PHQ9+Sex+Tanner_Score,data=T2_data))
+#             Estimate Std. Error t value Pr(>|t|)    
+#IAT_d         0.986724   0.575066   1.716   0.0962 . 
+#F-statistic:  2.34 on 4 and 31 DF,  p-value: 0.07692
+
+
+#####################################################################################
+#Testing with robust regression 
+#(dmn2 ~ IAT_d+RADS_total,data=T2_data)
+m6a<-rlm(dmn2 ~ IAT_d + Sex + scale(RADS_total, scale = F),data=T2_data)
+summary(m6a)
+f.robftest(m6a, var = "IAT_d")
+## p = 0.04118
+
+#(dmn2 ~ IAT_d+PHQ9,data=data)
+m6b<-rlm(dmn2 ~ IAT_d + Sex + scale(PHQ9, scale = F),data=T2_data)    ###BEST!!!
+summary(m6b)
+f.robftest(m6b, var = "IAT_d")
+## p = 0.03216
+
+#(dmn2 ~ IAT_d+PHQ9,data=data)
+m6ba<-rlm(dmn2 ~ IAT_d + Sex + Age_at_V2 + scale(PHQ9, scale = F),data=T2_data)    ###BEST!!!
+summary(m6ba)
+f.robftest(m6ba, var = "IAT_d")
+## p = 0.04917
+
+##When trying to replicate for T1 - flops
+m6c<-rlm(dmn1 ~ IAT.dscore + Sex + scale(RADS_total, scale = F),data=T1_data)   
+summary(m6c)
+f.robftest(m6c, var = "IAT.dscore")
+## p = 0.5946
+
+##When trying to replicate for T1 - flops
+m6d<-rlm(dmn1 ~ IAT.dscore + Sex + scale(RADS_total, scale = F),data=T1_MDD)   
+summary(m6d)
+f.robftest(m6d, var = "IAT.dscore")
+## p = 0.5201
+
+##When trying to replicate for T1 - flops
+m6e<-rlm(dmn1 ~ IAT.dscore + Sex + scale(PHQ9, scale = F),data=T1_data) 
+summary(m6e)
+f.robftest(m6e, var = "IAT.dscore")
+## p = 0.9305
+```
+
+###Visualizing best associations
+```{r}
+JWtheme<-theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.line=element_line(colour="black", size=1), text=element_text(size=15), axis.title.x=element_text(face="bold",size=15), axis.title.y=element_text(face="bold",size=15))+
+      theme(axis.text.x = element_text(colour="grey20",size=15,angle=0,hjust=.5,vjust=.5,face="plain"),
+            axis.text.y = element_text(colour="grey20",size=15,angle=0,hjust=1,vjust=0,face="plain"), 
+            axis.title.x = element_text(colour="grey20",size=15,angle=0,hjust=.5,vjust=0,face="plain"),
+            axis.title.y = element_text(colour="grey20",size=15,angle=90,hjust=.5,vjust=.5,face="plain"),
+            title=element_text(colour="black",size=15,face="plain"))
+
+##old T1 TIGER ICA
+#negatively associated
+plotlabels1 <- list(xlab("SIQ"), 
+                    ylab("Saliency"), 
+                    ggtitle("SI and Saliency"))
+plot_SIQ_Saliency <- ggplot(T1_data, aes(x=SIQ,y=saliency1)) + stat_smooth(method=lm, size=5, color = 'firebrick') + geom_point(size=4) + JWtheme + plotlabels1 
+print(plot_SIQ_Saliency)
+
+##T2 TIGER ICA 
+#positively associated
+plotlabels2 <- list(xlab("IAT - Implicit SI"), 
+                    ylab("DMN"), 
+                    ggtitle("IAT and DMN"))
+plot_IAT_DMN <- ggplot(T2_data, aes(x=IAT_d,y=dmn2)) + stat_smooth(method=lm, size=5, color = 'firebrick') + geom_point(size=4) + JWtheme + plotlabels2 
+print(plot_IAT_DMN)
+
+```
+
+
+###################################################
+
+
+#Import T2 data sheets
+```{r}
+ICA_T2_DATA<- read.csv("TIGER_ICA_Results_T2.csv", header=T, sep = ',', na.strings=c("999","NaN","-888","888","NA"))
+T2_Behav_DATA<- read.csv("T2_curated.csv", header=T, sep = ',', na.strings=c("999","NaN","-888","888","NA"))
+T2_data<-merge(T2_Behav_DATA,ICA_T2_DATA,by="TIGER_ID",all=TRUE)
+
+T2_data$Group <- T2_data$Group.x
+T2_data$Group<-as.factor(T2_data$Group)
+T2_data$Gender<-as.factor(T2_data$Gender)
+T2_data$ID<-as.factor(T2_data$TIGER_ID)
+T2_data$Sex<-as.factor(T2_data$Sex)
+```
+
+##Corrplot TIGER T2 ICA
+```{r}
+require("corrplot")
+library(corrplot)
+
+vars<-c("dmn1","saliency1","saliency2","frontal1","dmn2","basalganglia1","RADS_total","PHQ9","PHQ9_q9","IAT_d","IAT_diff2","SIQ")
+T2_corrdata<-T2_data[vars]
+
+M<-cor(T2_corrdata,method="pearson",use="pairwise.complete.obs") #missing observations dropped automatically per pair
+
+# matrix of the p-value of the correlation
+p.mat <- cor.mtest(T2_corrdata)
+#head(p.mat[, 1:5]) #this will display first 5 variables
+
+#plot the correlation matrix and cross-out those under p<0.05
+par(cex=0.5) #aesthetics - adjust size of correlation est
+corrplot(M,method="number", tl.cex=0.8,tl.srt=70,type="upper", p.mat = p.mat, sig.level = 0.05)  
+
+#Corrlations for TIGER ICA T2:
+#dmn2 - IAT_d
+#saliency1 - PHQ9
+```
+
+###QC T2 visualization
+```{r}
+T2_data$Age_at_V2<-as.numeric(T2_data$Age_at_V2)
+
+describe(T2_data$Age_at_V2) #n = 36, 14.18-18.56, mean 16.87+/-1.21
+describe(T2_data$SIQ) #n = 36, 0-54, mean 18.44+/-17.58
+describe(T2_data$IAT_d) #n = 36, -0.49-0.4, mean -0.15+/-0.22
+describe(T2_data$IAT_diff2) #n = 36, -0.65 - 0.27, mean -0.11+/-0.22
+
+boxplot(T2_data$Age_at_V2 ~ T2_data$Group)
+boxplot(T2_data$PHQ9 ~ T2_data$Group)
+boxplot(T2_data$SIQ ~ T2_data$Group)
+boxplot(T2_data$IAT_d ~ T2_data$Group)
+boxplot(T2_data$dmn2 ~ T2_data$Group)
+boxplot(T2_data$saliency1 ~ T2_data$Group)
+
+T2_males<-subset(T2_data,Sex=="1")
+T2_females<-subset(T2_data,Sex=="2")
+T2_MDD<-subset(T2_data,Group=="MDD")
+T2_CTL<-subset(T2_data,Group=="CTL")
+
+#group diff in age and sex?
+tbl=table(T2_data$Group, T2_data$Sex)
+chisq.test(tbl) #difference in Sex - 0.04148
+summary(T2_data$Sex) #10 boys, 26 girls
+
+t.test(T2_MDD$Age_at_V2,T2_CTL$Age_at_V2,var.equal=TRUE) #no difference in age - p=0.2539
+t.test(T2_MDD$PHQ9,T2_CTL$PHQ9,var.equal=TRUE) #difference in PHQ9 - p=3.029e-05
+t.test(T2_MDD$SIQ,T2_CTL$SIQ,var.equal=TRUE) #difference in SIQ - p=0.001937
+t.test(T2_MDD$IAT_d,T2_CTL$IAT_d,var.equal=TRUE) #no difference in IAT - p=0.4889
+t.test(T2_MDD$dmn2,T2_CTL$dmn2,var.equal=TRUE) #no difference in dmn2 - p=0.7937
+t.test(T2_MDD$saliency1,T2_CTL$saliency1,var.equal=TRUE) #no difference in salienecy1 - p=0.3228
+```
+
+##Group difference in DMN T2
+```{r}
+plotvlabs <- list(ylab("DMN"),xlab(""),
+             ggtitle("Group Differences in DMN"),
+             geom_point(size=8),
+             geom_line(size=2),
+             scale_color_manual(values=c("lightpink","deeppink1")),
+             scale_x_discrete())
+
+#violin
+pv <- ggplot(T2_data, aes(x=Group, y=dmn2, color=Group,xlim="CTL","MDD")) + 
+  geom_boxplot(width=0.1)+geom_point(size=5)+JWtheme+plotvlabs
+##http://www.sthda.com/english/wiki/ggplot2-violin-plot-quick-start-guide-r-software-and-data-visualization
+
+```
+
+##DO NOT USE - pulled from another script!
+```{r}
+#mediation
+fit1<-lm(SIQ ~ DERS_strategies+Age.at.RSFC,data)
+fit2<-lm(R.BLA_VMPFC14m ~ DERS_strategies+Age.at.RSFC,data)
+fit3<-lm(SIQ ~ R.BLA_VMPFC14m+Age.at.RSFC,data)
+
+
+summary(fit1)
+summary(fit2)
+summary(fit3)
+
+# CI for a*b: 
+c=summary(fit1)$coefficients[2,1]
+a = summary(fit2)$coefficients[2,1]
+se.a = summary(fit2)$coefficients[2,2]
+b = summary(fit3)$coefficients[2,1]
+se.b = summary(fit3)$coefficients[2,2]
+library(RMediation) #https://cran.r-project.org/web/packages/RMediation/RMediation.pdf) which is what the function medci in the above code is calling from
+#https://rdrr.io/cran/RMediation/man/medci.html
+medci(mu.x=a, mu.y=b, se.x=se.a, se.y=se.b, rho=0, alpha=.05,
+      type="prodclin", plot=TRUE, plotCI=TRUE)#type all gives an error
+
+medci(mu.x=a, mu.y=b, se.x=se.a, se.y=se.b, rho=0, alpha=.05,
+      type="MC", plot=TRUE, plotCI=TRUE)
+
+medci(mu.x=a, mu.y=b, se.x=se.a, se.y=se.b, rho=0, alpha=.05,
+      type="dop", plot=TRUE, plotCI=TRUE)
+
+medci(mu.x=a, mu.y=b, se.x=se.a, se.y=se.b, rho=0, alpha=.05,
+      type="asymp", plot=TRUE, plotCI=TRUE)
+
+
+#and here is some general background (using a diff package in R but the idea is the same): http://data.library.virginia.edu/introduction-to-mediation-analysis/
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
