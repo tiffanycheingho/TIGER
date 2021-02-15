@@ -1,0 +1,1154 @@
+---
+title: "TIGER ICA SI NSSI PAPER"
+authors: "Giana Teresi & Tiffany Ho"
+date: "8/4/20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1) Loading libraries
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(eeptools)
+library(lubridate)
+library(tidyr)
+library(dplyr)
+library(psych)
+library(car)
+library(ggpubr)
+library(heplots)
+```
+
+#2) Importing data files, merging, renaming, cleaning, and subsetting
+```{r}
+#Importing data sheets
+ICA <- read.csv("TIGER_ICA_Results_T1.csv")
+Golden <- read.csv("TIGER_GOLDEN_Curated_3.13.2020.csv", na.strings=c("999","888"))
+CSSRS <- read.csv("TIGER_T1_CSSRS.csv")
+SITBI <- read.csv("TIGER_T1_SITBI.csv")
+rsfc <- read.csv("TIGER_ELS_Final_RSFC_April2020.csv")
+S2S <- read.csv("TIGER_T1_ICA_SeedResults.csv")
+names(CSSRS)[1]<-"SubjID"
+#Merging data
+bx1 <- merge(Golden, CSSRS, by = "SubjID", all = T)
+bx2 <- merge(bx1, SITBI, by = "SubjID", all = T)
+bx2_ICA <- merge(bx2, ICA, by = "Tiger_ID", all=T)
+bx2_ICA_rsfc <-merge(bx2_ICA, rsfc, by ="Tiger_ID", all.x=T)
+ICA_Gold <-merge(bx2_ICA_rsfc, S2S, by ="SubjID", all.x =T)
+
+#Viewing data
+#View(ICA_Gold)
+
+#Renaming Variables
+ICA_Gold <- rename(ICA_Gold, "Current_Med"= "Current_Med_Psychosocial", "DMN.A" = "dmn1", "DMN.P" = "PCC1", "DMN.V" = "hippocampus1", "SN.ACC" = "saliency1", "SN.Ins" = "insula_sensorimotor1", "CEN.R" = "frontoparietal1", "CEN.L" = "frontoparietal_L1", "NSSI_Group" = "Group_Comp")
+
+#Cleaning Variables
+ICA_Gold$Sex <- ifelse(ICA_Gold$Sex == 1, "Male", "Female")
+ICA_Gold$Current_Med <- ifelse(ICA_Gold$Current_Med == 1, "Meds", "noMeds")
+ICA_Gold$Race <- as.factor(ICA_Gold$Race)
+levels(ICA_Gold$Race) <- c(0,0,0,1,0,0) #converting to White v. Non-white
+
+#Subsetting
+DATA_USED<-subset(ICA_Gold, !is.na(Age.at.RSFC)) #70 participants with resting state data (9 excluded)
+MDD_USED<-subset(DATA_USED, Group.x=="MDD") #49 MDD
+CTL_USED<-subset(DATA_USED, Group.x=="CTL") #21 CTL
+MDD_NSSI <- subset(MDD_USED, NSSI_Group == "nssi") #29 MDD w/ NSSI
+MDD_noNSSI <- subset(MDD_USED, NSSI_Group == "dep") #20 MDD w/out NSSI
+MDD_SI <- subset(MDD_USED, SI_Group == "si") #28 MDD w/ SI
+MDD_noSI <- subset(MDD_USED, SI_Group == "dep") #21 MDD w/out SI
+Overlap <- subset(MDD_USED, SI_Group == "si" & NSSI_Group == "nssi") #20 overlapping
+```
+
+#3) Testing normality and equal variance
+```{r}
+#Testing normality 
+
+shapiro.test(DATA_USED$Age.at.V2) #W = 0.95991, p-value = 0.02476
+shapiro.test(DATA_USED$CDRSR_tscore) #W = 0.8688, p-value = 2.781e-06
+shapiro.test(DATA_USED$SIQ) #p-value = 1.592e-06
+shapiro.test(DATA_USED$Interval_V1_V2) #W = 0.96796, p-value = 0.06989
+shapiro.test(DATA_USED$motion) #W = 0.93866, p-value = 0.001932
+shapiro.test(DATA_USED$SITBI_PastMonth_Composite) #W = 0.24757, p-value < 2.2e-16
+
+shapiro.test(DATA_USED$DMN.A) #W = 0.98197, p-value = 0.4105
+shapiro.test(DATA_USED$SN.Ins) #W = 0.93795, p-value = 0.001782
+shapiro.test(DATA_USED$CEN.R) #W = 0.99332, p-value = 0.9734
+shapiro.test(DATA_USED$CEN.L) #W = 0.9733, p-value = 0.1399
+shapiro.test(DATA_USED$SN.ACC) #W = 0.97343, p-value = 0.1424
+shapiro.test(DATA_USED$DMN.P) #W = 0.97751, p-value = 0.2397
+shapiro.test(DATA_USED$DMN.V) #W = 0.98578, p-value = 0.614
+
+shapiro.test(DATA_USED$DMN.A_CEN.L) #W = 0.98234, p-value = 0.4278
+shapiro.test(DATA_USED$DMN.A_CEN.R) #W = 0.99094, p-value = 0.8977
+shapiro.test(DATA_USED$DMN.P_CEN.L) #W = 0.98758, p-value = 0.7204
+shapiro.test(DATA_USED$DMN.P_CEN.R) #W = 0.9824, p-value = 0.431
+shapiro.test(DATA_USED$DMN.V_CEN.L) #W = 0.98571, p-value = 0.6101
+shapiro.test(DATA_USED$DMN.V_CEN.R) #W = 0.9796, p-value = 0.3102
+
+shapiro.test(DATA_USED$SN.ACC_CEN.L) #W = 0.95294, p-value = 0.01036
+shapiro.test(DATA_USED$SN.ACC_CEN.R) #W = 0.98986, p-value = 0.8472
+shapiro.test(DATA_USED$SN.ACC_DMN.A) #W = 0.97616, p-value = 0.202
+shapiro.test(DATA_USED$SN.ACC_DMN.P) #W = 0.97996, p-value = 0.3242
+shapiro.test(DATA_USED$SN.ACC_DMN.V) #W = 0.98359, p-value = 0.4911
+
+shapiro.test(DATA_USED$SN.Ins_CEN.L) #W = 0.98224, p-value = 0.4232
+shapiro.test(DATA_USED$SN.Ins_CEN.R) #W = 0.989, p-value = 0.8018
+shapiro.test(DATA_USED$SN.Ins_DMN.A)#W = 0.96829, p-value = 0.07294
+shapiro.test(DATA_USED$SN.Ins_DMN.P)  #W = 0.97137, p-value = 0.109
+shapiro.test(DATA_USED$SN.Ins_DMN.V) #W = 0.9821, p-value = 0.4166
+
+#Levene Test for Homogeneity in Variance
+
+leveneTest(Age.at.V2~Group.x,DATA_USED)
+leveneTest(CDRSR_tscore~Group.x,DATA_USED) #significant
+leveneTest(SIQ~Group.x,DATA_USED) #significant
+leveneTest(Interval_V1_V2~Group.x,DATA_USED) 
+leveneTest(motion~Group.x,DATA_USED)
+leveneTest(SITBI_PastMonth_Composite~Group.x,DATA_USED) #not significant still used Wilcox
+
+leveneTest(DMN.A~Group.x,DATA_USED)
+leveneTest(SN.Ins~Group.x,DATA_USED)
+leveneTest(CEN.R~Group.x,DATA_USED)
+leveneTest(CEN.L~Group.x,DATA_USED)
+leveneTest(SN.ACC~Group.x,DATA_USED) #p=0.04
+leveneTest(DMN.P~Group.x,DATA_USED)
+leveneTest(DMN.V~Group.x,DATA_USED)
+
+leveneTest(DMN.A_CEN.L~Group.x,DATA_USED)
+leveneTest(DMN.A_CEN.R~Group.x,DATA_USED)
+leveneTest(DMN.P_CEN.L~Group.x,DATA_USED)
+leveneTest(DMN.P_CEN.R~Group.x,DATA_USED)
+leveneTest(DMN.V_CEN.L~Group.x,DATA_USED)
+leveneTest(DMN.V_CEN.R~Group.x,DATA_USED)
+
+leveneTest(SN.ACC_CEN.L~Group.x,DATA_USED)
+leveneTest(SN.ACC_CEN.R~Group.x,DATA_USED)
+leveneTest(SN.ACC_DMN.A~Group.x,DATA_USED)
+leveneTest(SN.ACC_DMN.P~Group.x,DATA_USED)
+leveneTest(SN.ACC_DMN.V~Group.x,DATA_USED)
+
+leveneTest(SN.Ins_CEN.L~Group.x,DATA_USED)
+leveneTest(SN.Ins_CEN.R~Group.x,DATA_USED)
+leveneTest(SN.Ins_DMN.A~Group.x,DATA_USED)
+leveneTest(SN.Ins_DMN.P~Group.x,DATA_USED) #p=.049
+leveneTest(SN.Ins_DMN.V~Group.x,DATA_USED)
+
+#cronbach of SIQ
+SIQ <- read.csv("TIGER_T1_SIQ_Items.csv")
+nrow(SIQ) #80
+psych::alpha(SIQ[,c(5:19)])
+#in full sample: 0.95
+
+SIQ_ICA <- merge(SIQ, DATA_USED, by="SubjID", all.y=T)
+nrow(SIQ_ICA) #70
+psych::alpha(SIQ_ICA[,c(5:19)])
+#in ICA sample: 0.95
+```
+
+#4) Demographics
+```{r}
+###Table 1A: Descriptive statistics for MDD v. CTL###
+
+#Age
+describe(MDD_USED$Age.at.V2)
+describe(CTL_USED$Age.at.V2)
+t.test(Age.at.V2 ~ Group.x, DATA_USED, var.equal = T)
+
+#Sex
+table(MDD_USED$Sex)
+table(CTL_USED$Sex)
+chisq.test(DATA_USED$Sex, DATA_USED$Group.x)
+
+#Race
+table(MDD_USED$Race)
+table(CTL_USED$Race)
+chisq.test(DATA_USED$Race, DATA_USED$Group.x)
+
+#Current Medication Status
+table(MDD_USED$Current_Med)
+table(CTL_USED$Current_Med)
+chisq.test(DATA_USED$Current_Med, DATA_USED$Group.x)
+
+#CDRS-R t-scores
+describe(MDD_USED$CDRSR_tscore)
+describe(CTL_USED$CDRSR_tscore)
+wilcox.test(MDD_USED$CDRSR_tscore, CTL_USED$CDRSR_tscore)
+
+#SIQ-JR scores
+describe(MDD_USED$SIQ)
+describe(CTL_USED$SIQ)
+wilcox.test(MDD_USED$SIQ, CTL_USED$SIQ)
+
+#Session Intervals (days)
+describe(MDD_USED$Interval_V1_V2)
+describe(CTL_USED$Interval_V1_V2)
+t.test(Interval_V1_V2 ~ Group.x, DATA_USED, var.equal = T)
+
+#Motion (mm)
+describe(MDD_USED$motion)
+describe(CTL_USED$motion)
+t.test(motion ~ Group.x, DATA_USED, var.equal = T)
+
+
+###Table 1B: Descriptive statistics for MDD w/ SI v MDD w/out SI###
+#Age
+describe(MDD_SI$Age.at.V2)
+describe(MDD_noSI$Age.at.V2)
+t.test(Age.at.V2 ~ SI_Group, MDD_USED, var.equal = T)
+
+#Sex
+table(MDD_SI$Sex)
+table(MDD_noSI$Sex)
+chisq.test(MDD_USED$Sex, MDD_USED$SI_Group)
+
+#Race
+table(MDD_SI$Race)
+table(MDD_noSI$Race)
+chisq.test(MDD_USED$Race, MDD_USED$SI_Group)
+
+#Current Medication Status
+table(MDD_SI$Current_Med)
+table(MDD_noSI$Current_Med)
+chisq.test(MDD_USED$Current_Med, MDD_USED$SI_Group)
+
+#CDRS-R t-scores
+describe(MDD_SI$CDRSR_tscore)
+describe(MDD_noSI$CDRSR_tscore)
+wilcox.test(MDD_SI$CDRSR_tscore, MDD_noSI$CDRSR_tscore)
+
+#SIQ-JR scores
+describe(MDD_SI$SIQ)
+describe(MDD_noSI$SIQ)
+t.test(SIQ ~ SI_Group, MDD_USED, var.equal = T)
+
+
+#Session Intervals (days)
+describe(MDD_SI$Interval_V1_V2)
+describe(MDD_noSI$Interval_V1_V2)
+t.test(Interval_V1_V2 ~ SI_Group, MDD_USED, var.equal = T)
+
+#Motion (mm)
+describe(MDD_SI$motion)
+describe(MDD_noSI$motion)
+t.test(motion ~ SI_Group, MDD_USED, var.equal = T)
+
+#Hx of Suicide Attempt
+table(MDD_SI$Hx.Attempt.All)
+table(MDD_noSI$Hx.Attempt.All)
+chisq.test(MDD_USED$Hx.Attempt.All, MDD_USED$SI_Group)
+
+#Hx of NSSI
+table(MDD_SI$NSSI_Group)
+table(MDD_noSI$NSSI_Group)
+chisq.test(MDD_USED$NSSI_Group, MDD_USED$SI_Group)
+
+#NSSI frequency
+describe(MDD_SI$SITBI_PastMonth_Composite)
+describe(MDD_noSI$SITBI_PastMonth_Composite)
+wilcox.test(MDD_SI$SITBI_PastMonth_Composite,MDD_noSI$SITBI_PastMonth_Composite)
+
+###Table 1C: Descriptive stats for MDD w/ NSSI v. MDD w/out NSSI###
+#Age
+describe(MDD_NSSI$Age.at.V2)
+describe(MDD_noNSSI$Age.at.V2)
+t.test(Age.at.V2 ~ NSSI_Group, MDD_USED, var.equal = T)
+
+#Sex
+table(MDD_NSSI$Sex)
+table(MDD_noNSSI$Sex)
+chisq.test(MDD_USED$Sex, MDD_USED$NSSI_Group)
+
+#Race
+table(MDD_NSSI$Race)
+table(MDD_noNSSI$Race)
+chisq.test(MDD_USED$Race, MDD_USED$NSSI_Group)
+
+#Current Medication Status
+table(MDD_NSSI$Current_Med)
+table(MDD_noNSSI$Current_Med)
+chisq.test(MDD_USED$Current_Med, MDD_USED$NSSI_Group)
+
+#CDRS-R t-scores
+describe(MDD_NSSI$CDRSR_tscore)
+describe(MDD_noNSSI$CDRSR_tscore)
+wilcox.test(MDD_NSSI$CDRSR_tscore, MDD_noNSSI$CDRSR_tscore)
+
+#SIQ-JR scores
+describe(MDD_NSSI$SIQ)
+describe(MDD_noNSSI$SIQ)
+t.test(SIQ ~ NSSI_Group, MDD_USED, var.equal = T)
+
+#Session Intervals (days)
+describe(MDD_NSSI$Interval_V1_V2)
+describe(MDD_noNSSI$Interval_V1_V2)
+t.test(Interval_V1_V2 ~ NSSI_Group, MDD_USED, var.equal = T)
+
+#Motion (mm)
+describe(MDD_NSSI$motion)
+describe(MDD_noNSSI$motion)
+t.test(motion ~ NSSI_Group, MDD_USED, var.equal = T)
+
+#Hx of SI
+table(MDD_NSSI$SI_Group)
+table(MDD_noNSSI$SI_Group)
+chisq.test(MDD_USED$SI_Group, MDD_USED$NSSI_Group)
+
+#Hx of Suicide Attempt
+table(MDD_NSSI$Hx.Attempt.All)
+table(MDD_noNSSI$Hx.Attempt.All)
+chisq.test(MDD_USED$Hx.Attempt.All, MDD_USED$NSSI_Group)
+
+#NSSI frequency
+describe(MDD_NSSI$SITBI_PastMonth_Composite)
+describe(MDD_noNSSI$SITBI_PastMonth_Composite)
+wilcox.test(MDD_NSSI$SITBI_PastMonth_Composite,MDD_noNSSI$SITBI_PastMonth_Composite)
+
+###Include v. Excluded###
+#Age
+t.test(Age.at.V2 ~ Included, ICA_Gold, var.equal = T)
+
+#Sex
+chisq.test(ICA_Gold$Sex, ICA_Gold$Included)
+
+#Race
+chisq.test(ICA_Gold$Race, ICA_Gold$Included)
+
+#Current Medication Status
+chisq.test(ICA_Gold$Current_Med, ICA_Gold$Included)
+
+#CDRS-R t-scores
+wilcox.test(CDRSR_tscore ~ Included, ICA_Gold)
+
+#SIQ-JR scores
+wilcox.test(SIQ ~ Included, ICA_Gold)
+
+#Hx of SI
+chisq.test(ICA_Gold$SI_Group, ICA_Gold$Included)
+
+#Hx of Suicide Attempt
+chisq.test(ICA_Gold$Hx.Attempt.All, ICA_Gold$Included)
+
+#NSSI frequency
+wilcox.test(SITBI_PastMonth_Composite ~ Included, ICA_Gold)
+```
+
+#5) SI Group Comparisons & Figures
+```{r}
+###Planned contrasts###
+
+#Setting up planned contrasts
+
+ICA_Gold$SI_Group <- as.character(ICA_Gold$SI_Group)
+ICA_Gold$SI_Group <- factor(ICA_Gold$SI_Group, levels = c("si", "dep", "hc"), ordered=FALSE)
+levels(ICA_Gold$SI_Group) #level order: si, dep, hc
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$SI_Group)<-my.simple 
+contrasts(ICA_Gold$SI_Group)
+#2 is nssi v. dep, 3 is nssi v. hc
+
+#SN.Ins
+SN.Ins_SI <- lm(SN.Ins ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(SN.Ins_SI, type = "II")
+summary(SN.Ins_SI)
+etasq(SN.Ins_SI,type=2)
+
+#SN.ACC
+SN.ACC_SI <- lm(SN.ACC ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(SN.ACC_SI, type = "II")
+summary(SN.ACC_SI)
+etasq(SN.ACC_SI,type=2)
+
+#DMN.A
+DMN.A_SI <- lm(DMN.A ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.A_SI, type = "II")
+summary(DMN.A_SI)
+etasq(DMN.A_SI,type=2)
+
+#DMN.P
+DMN.P_SI <- lm(DMN.P ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.P_SI, type = "II")
+summary(DMN.P_SI)
+etasq(DMN.P_SI,type=2)
+
+#DMN.V
+DMN.V_SI <- lm(DMN.V ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.V_SI, type = "II")
+summary(DMN.V_SI)
+etasq(DMN.V_SI,type=2)
+
+#CEN.R
+CEN.R_SI <- lm(CEN.R ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(CEN.R_SI, type = "II")
+summary(CEN.R_SI)
+etasq(CEN.R_SI,type=2)
+
+#CEN.L
+CEN.L_SI <- lm(CEN.L ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(CEN.L_SI, type = "II")
+summary(CEN.L_SI)
+etasq(CEN.L_SI,type=2)
+
+###Post-Hoc contrasts###
+
+#Setting up post-hoc contrasts
+ICA_Gold$SI_Group <- as.character(ICA_Gold$SI_Group)
+ICA_Gold$SI_Group <- factor(ICA_Gold$SI_Group, levels = c("hc", "dep", "si"), ordered=FALSE)
+levels(ICA_Gold$SI_Group) #level order: "hc", "dep", "si"
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$SI_Group)<-my.simple 
+contrasts(ICA_Gold$SI_Group)
+#2 is hc v. dep, 3 is hc v. si
+
+#SN.Ins
+SN.Ins_SI_ph <- lm(SN.Ins ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_SI_ph)
+
+#SN.ACC
+SN.ACC_SI_ph <- lm(SN.ACC ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_SI_ph)
+
+#DMN.A
+DMN.A_SI_ph <- lm(DMN.A ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_SI_ph)
+
+#DMN.P
+DMN.P_SI_ph <- lm(DMN.P ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_SI_ph)
+
+#DMN.V
+DMN.V_SI_ph <- lm(DMN.V ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_SI_ph)
+
+#CEN.R
+CEN.R_SI_ph <- lm(CEN.R ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(CEN.R_SI_ph)
+
+#CEN.L
+CEN.L_SI_ph <- lm(CEN.L ~ SI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(CEN.L_SI_ph)
+
+###Plots and Figures###
+
+#TH figure theme
+tifftheme<-theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.line=element_line(colour="black"), text=element_text(size=20), axis.title.x=element_text(face="bold",size=20), axis.title.y=element_text(face="bold",size=20))
+
+#releveling so level order is SI+, SI-, CTL
+DATA_USED$SI_Group <- relevel(DATA_USED$SI_Group, ref = "si")
+levels(DATA_USED$SI_Group)
+
+#SN-Ins and SI 
+ggplot(DATA_USED, aes(SI_Group, SN.Ins))+geom_boxplot(aes(fill=SI_Group))+ tifftheme+ylab("SN-Ins Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("SI+", "SI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "SI-", "si" = "SI+")) +scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7)) + geom_bracket(xmin ="si", xmax = "hc", y.position = 6.6,
+    label = "**",size =.5, label.size = 15)
+
+#DMN-A and SI
+ggplot(DATA_USED, aes(SI_Group, DMN.A))+geom_boxplot(aes(fill=SI_Group))+ tifftheme+ylab("DMN-A Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("SI+", "SI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "SI-", "si" = "SI+")) +scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7))+geom_bracket(xmin ="si", xmax = "hc", y.position = 6.2,
+    label = "**", size =.5, label.size = 15)
+
+#DMN.P and SI
+ggplot(DATA_USED, aes(SI_Group, DMN.P))+geom_boxplot(aes(fill=SI_Group))+ tifftheme+ylab("DMN-P Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("SI+", "SI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "SI-", "si" = "SI+")) +scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.8))+ geom_bracket(xmin ="dep", xmax = "hc", y.position = 6.8,
+    label = "*", size =.5, label.size = 15) + geom_bracket(xmin ="si", xmax = "hc", y.position = 7.5, label = "*", size =.5, label.size = 15)
+
+#DMN.V and SI
+ggplot(DATA_USED, aes(SI_Group, DMN.V))+geom_boxplot(aes(fill=SI_Group))+ tifftheme+ylab("DMN-V Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("SI+", "SI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "SI-", "si" = "SI+")) +scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7))+geom_bracket(xmin ="si", xmax = "dep", y.position = 6.7,
+    label = "*", size =.5, label.size = 15)+ geom_bracket(xmin ="si", xmax = "hc", y.position = 7.4,
+    label = "*", size =.5, label.size = 15)
+```
+
+#6) NSSI Group Comparisons & Figures
+```{r}
+###Planned contrasts###
+
+#Setting up planned contrasts
+ICA_Gold$NSSI_Group <- relevel(ICA_Gold$NSSI_Group, ref = "nssi")
+levels(ICA_Gold$NSSI_Group) #level order: nssi, dep, hc
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$NSSI_Group)<-my.simple 
+contrasts(ICA_Gold$NSSI_Group)
+#2 is nssi v. dep, 3 is nssi v. hc
+
+#SN.Ins
+SN.Ins_NSSI <- lm(SN.Ins ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(SN.Ins_NSSI, type = "II")
+summary(SN.Ins_NSSI)
+etasq(SN.Ins_NSSI,type=2)
+
+#SN.ACC
+SN.ACC_NSSI <- lm(SN.ACC ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(SN.ACC_NSSI, type = "II")
+summary(SN.ACC_NSSI)
+etasq(SN.ACC_NSSI,type=2)
+
+#DMN.A
+DMN.A_NSSI <- lm(DMN.A ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.A_NSSI, type = "II")
+summary(DMN.A_NSSI)
+etasq(DMN.A_NSSI,type=2)
+
+#DMN.P
+DMN.P_NSSI <- lm(DMN.P ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.P_NSSI, type = "II")
+summary(DMN.P_NSSI)
+etasq(DMN.P_NSSI,type=2)
+
+#DMN.V
+DMN.V_NSSI <- lm(DMN.V ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(DMN.V_NSSI, type = "II")
+summary(DMN.V_NSSI)
+etasq(DMN.V_NSSI,type=2)
+
+#CEN.R
+CEN.R_NSSI <- lm(CEN.R ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(CEN.R_NSSI, type = "II")
+summary(CEN.R_NSSI)
+etasq(CEN.R_NSSI,type=2)
+
+#CEN.L
+CEN.L_NSSI <- lm(CEN.L ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+Anova(CEN.L_NSSI, type = "II")
+summary(CEN.L_NSSI)
+etasq(CEN.L_NSSI,type=2)
+
+###FDR Correction###
+
+pvals<-c(0.002, 0.007, 0.021, 0.0004, 0.407, 0.559, 0.299)
+p.adjust(pvals,method="fdr",n=length(pvals))
+#order of pvals: DMN-A DMN-P DMN-V SN-Ins SN.ACC CEN-L CEN-R
+
+###Post-Hoc contrasts###
+
+#Setting up post-hoc contrasts
+ICA_Gold$NSSI_Group <- relevel(ICA_Gold$NSSI_Group, ref = "hc")
+levels(ICA_Gold$NSSI_Group) #level order: "hc"   "nssi" "dep"
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$NSSI_Group)<-my.simple 
+contrasts(ICA_Gold$NSSI_Group)
+#2 is hc v. nssi, 3 is hc. v dep
+
+#SN.Ins
+SN.Ins_NSSI_ph <- lm(SN.Ins ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_NSSI_ph)
+
+#SN.ACC
+SN.ACC_NSSI_ph <- lm(SN.ACC ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_NSSI_ph)
+
+#DMN.A
+DMN.A_NSSI_ph <- lm(DMN.A ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_NSSI_ph)
+
+#DMN.P
+DMN.P_NSSI_ph <- lm(DMN.P ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_NSSI_ph)
+
+#DMN.V
+DMN.V_NSSI_ph <- lm(DMN.V ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_NSSI_ph)
+
+#CEN.R
+CEN.R_NSSI_ph <- lm(CEN.R ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(CEN.R_NSSI_ph)
+
+#CEN.L
+CEN.L_NSSI_ph <- lm(CEN.L ~ NSSI_Group+ scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(CEN.L_NSSI_ph)
+
+###Plots and Figures###
+
+#TH figure theme
+tifftheme<-theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.line=element_line(colour="black"), text=element_text(size=20), axis.title.x=element_text(face="bold",size=20), axis.title.y=element_text(face="bold",size=20))
+
+#releveling so level order is NSSI+, NSSI-, CTL
+DATA_USED$NSSI_Group <- relevel(DATA_USED$NSSI_Group, ref = "nssi")
+levels(DATA_USED$NSSI_Group)
+
+#SN-Ins NSSI plot
+ggplot(DATA_USED, aes(NSSI_Group, SN.Ins))+geom_boxplot(aes(fill=NSSI_Group))+tifftheme+ylab("SN-Ins Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("NSSI+", "NSSI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "NSSI-","nssi" = "NSSI+"))+scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7))+geom_bracket(xmin ="nssi", xmax = "dep", y.position = 6.2,
+    label = "**", size = .5, label.size = 15)+ geom_bracket(xmin ="nssi", xmax = "hc", y.position = 6.9,
+    label = "***", size =.5, label.size = 15)
+
+#DMN.A and NSSI plot
+ggplot(DATA_USED, aes(NSSI_Group, DMN.A))+geom_boxplot(aes(fill=NSSI_Group))+tifftheme+ylab("DMN-A Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("NSSI+", "NSSI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "NSSI-","nssi" = "NSSI+"))+scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7))+geom_bracket(xmin ="nssi", xmax = "dep", y.position = 6.2,
+    label = "*", size =.5, label.size = 15)+ geom_bracket(xmin ="nssi", xmax = "hc", y.position = 6.9,
+    label = "***", size =.5, label.size = 15)
+
+#DMN.P and NSSI plot
+ggplot(DATA_USED, aes(NSSI_Group, DMN.P))+geom_boxplot(aes(fill=NSSI_Group))+tifftheme+ylab("DMN-P Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("NSSI+", "NSSI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "NSSI-","nssi" = "NSSI+")) +scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.8)) + geom_bracket(xmin ="nssi", xmax = "hc", y.position = 7.5,
+    label = "**", size =.5, label.size = 15)+ geom_bracket(xmin ="dep", xmax = "hc", y.position = 6.8,
+    label = "*", size =.5, label.size = 15)
+
+#DMN.V and NSSI plot
+ggplot(DATA_USED, aes(NSSI_Group, DMN.V))+geom_boxplot(aes(fill=NSSI_Group))+tifftheme+ylab("DMN-V Coherence (Z-Scores)")+xlab("")+scale_fill_discrete(name = "Diagnostic Group", labels = c("NSSI+", "NSSI-", "CTL"))+ scale_x_discrete(labels=c("hc" = "CTL", "dep" = "NSSI-","nssi" = "NSSI+"))+scale_y_continuous(breaks=c(2,3,4,5,6,7),limits=c(1.5,7.7))+geom_bracket(xmin ="nssi", xmax = "dep", y.position = 6.69,
+    label = "*", size =.5, label.size = 15)+ geom_bracket(xmin ="nssi", xmax = "hc", y.position = 7.4,
+    label = "*", size =.5, label.size = 15)
+```
+
+## using brm to see which distribution fits SIQ in my data the best
+
+### poisson
+```{r, message=FALSE}
+library(brms)
+library(loo)
+# poisson
+fit_p <- brm(SIQ ~ 1, data = MDD_USED, family = poisson()) 
+summary(fit_p)
+fit_p <- add_criterion(fit_p, c("loo", "kfold", "waic"))
+l_fit_p <- loo(fit_p, save_psis = TRUE, k_threshold = 0.7) # the importance sampling method we used is psis =  Pareto-Smoothed Importance Sampling 
+# k_threshold = Threshold for flagging estimates of the Pareto shape parameters 𝑘 estimated by loo
+pareto_k_table(l_fit_p)
+plot(l_fit_p, diagnotic="k")
+print(l_fit_p)
+plot(fit_p)
+pp_check(fit_p)
+```
+
+### negative binomial
+```{r, message=FALSE}
+# neg binomial
+fit_nb <- brm(SIQ ~ 1, data = MDD_USED, family = negbinomial())
+summary(fit_nb)
+fit_nb <- add_criterion(fit_nb, c("loo", "kfold", "waic"))
+l_fit_nb <- loo(fit_nb, save_psis = TRUE, k_threshold = 0.7)
+plot(l_fit_nb, diagnotic="k")
+print(l_fit_nb)
+plot(fit_nb)
+pp_check(fit_nb)
+fit_nb$fit
+```
+
+### comparing zero poisson and negative binomial
+```{r, message=FALSE}
+lo_compare_pandnb <- loo_compare(fit_nb, fit_p, criterion = c("loo", "waic", "kfold"))
+print(lo_compare_pandnb)
+#        elpd_diff se_diff
+# fit_nb    0.0       0.0 
+#fit_p  -180.9      46.3 
+
+model_weights(fit_nb, fit_p)
+#  fit_nb        fit_p 
+#9.999999e-01 8.577634e-08 
+
+loo(fit_nb, fit_p)
+# looic estimate for fit_nb 400.8
+# looic estimate for fit_p 762.5	
+```
+#Seems like `NB` better fit SIQ data because elpd_diff and se_diff was zero compared to `poisson`, and the model weight was higher for `NB` compared to `poisson`.
+
+## using brm to see which distribution fits SITBI in my data the best
+
+### poisson
+```{r, message=FALSE}
+library(brms)
+library(loo)
+# poisson
+fit_p <- brm(SITBI_PastMonth_Composite ~ 1, data = MDD_USED, family = poisson()) 
+summary(fit_p)
+fit_p <- add_criterion(fit_p, c("loo", "kfold", "waic"))
+l_fit_p <- loo(fit_p, save_psis = TRUE, k_threshold = 0.7) # the importance sampling method we used is psis =  Pareto-Smoothed Importance Sampling 
+# k_threshold = Threshold for flagging estimates of the Pareto shape parameters 𝑘 estimated by loo
+pareto_k_table(l_fit_p)
+plot(l_fit_p, diagnotic="k")
+print(l_fit_p)
+plot(fit_p)
+pp_check(fit_p)
+```
+
+### negative binomial
+```{r, message=FALSE}
+# neg binomial
+fit_nb <- brm(SITBI_PastMonth_Composite ~ 1, data = MDD_USED, family = negbinomial())
+summary(fit_nb)
+fit_nb <- add_criterion(fit_nb, c("loo", "kfold", "waic"))
+l_fit_nb <- loo(fit_nb, save_psis = TRUE, k_threshold = 0.7)
+plot(l_fit_nb, diagnotic="k")
+print(l_fit_nb)
+plot(fit_nb)
+pp_check(fit_nb)
+fit_nb$fit
+```
+
+### zero inflated negative binomial
+```{r, message=FALSE}
+# zero inflated binomial
+fit_zib <- brm(SITBI_PastMonth_Composite ~ 1, data = MDD_USED, family = zero_inflated_negbinomial())
+summary(fit_zib)
+fit_zib <- add_criterion(fit_zib, c("loo", "kfold", "waic"))
+l_fit_zib <- loo(fit_zib, save_psis = TRUE, k_threshold = 0.7)
+plot(l_fit_zib, diagnotic="k")
+print(l_fit_zib)
+plot(fit_zib)
+pp_check(fit_zib)
+```
+
+
+### comparing poisson and negative binomial
+```{r, message=FALSE}
+lo_compare_pandnb <- loo_compare(fit_nb, fit_p, criterion = c("loo", "waic", "kfold"))
+print(lo_compare_pandnb)
+#        elpd_diff se_diff
+# fit_nb    0.0       0.0 
+#fit_p  -347.8     202.3
+
+model_weights(fit_nb, fit_p)
+#  fit_nb        fit_p 
+#0.97873738 0.02126262
+
+loo(fit_nb, fit_p)
+# looic estimate for fit_nb 170.3
+# looic estimate for fit_p 865.9		
+```
+#Seems like `NB` better fit SITBI data because elpd_diff and se_diff was zero compared to `poisson`, and the model weight was higher for `NB` compared to `poisson`
+
+.### comparing zero inflated negative binomial and negative binomial
+```{r, message=FALSE}
+lo_compare_zibandnb <- loo_compare(fit_nb, fit_zib, criterion = c("loo", "waic", "kfold"))
+print(lo_compare_zibandnb)
+#        elpd_diff se_diff
+# fit_nb   0.0       0.0   
+#fit_zib -0.4       0.3  
+
+model_weights(fit_nb, fit_zib)
+#  fit_nb      fit_zib 
+# 9.999986e-01 1.433487e-06 
+
+loo(fit_nb, fit_zib)
+# looic estimate for fit_nb 170.3
+# looic estimate for fit_zib 171.0
+```
+Seems like 'NB' is slightly better than 'ZIB' 
+
+#Log transforming SIQ & SITBI
+```{r}
+MDD_USED$SIQlog <- log(MDD_USED$SIQ)
+hist(MDD_USED$SIQlog, breaks=20)
+shapiro.test(MDD_USED$SIQlog) #W = 0.98054, p-value = 0.5882
+
+MDD_USED$SITBIlog <- log(MDD_USED$SITBI_PastMonth_Composite + 0.0001)
+hist(MDD_USED$SITBIlog)
+shapiro.test(MDD_USED$SITBIlog) #W = 0.66789, p-value = 3.755e-09
+
+#badid <- grep("20-T1", MDD_USED$SubjID)
+#MDD_USED_noNA <- MDD_USED[-badid,]
+#MDD_USED_noNA$SITBI_PastMonth_Composite
+```
+
+
+#7) SI & NSSI Frequency Analyses
+```{r}
+###SIQ - SN-Ins, DMN.A, DMN.V, and DMN.P###
+library(MASS)
+#Without CDRS-R
+SN.Ins_SIQ <- lm(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(SN.Ins_SIQ) #SN.Ins                        -6.744      3.323  -2.030 0.048589 * 
+shapiro.test(SN.Ins_SIQ$residuals) #W = 0.91997, p-value = 0.00264
+
+SN.Ins_SIQ <- glm(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED)
+summary(SN.Ins_SIQ) #SN.Ins                      -0.29472    0.04329  -6.808 9.91e-12 ***
+#AIC: 688.75
+ 
+SN.Ins_SIQnb <- glm.nb(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(SN.Ins_SIQnb) #SN.Ins      -0.30089    0.12225  -2.461   0.0138 * 
+#AIC: 403.05
+
+SN.Ins_SIQlm <- glm(SIQlog ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(SN.Ins_SIQlm) #SN.Ins           -0.23615    0.13906  -1.698   0.0967 .  
+#AIC: 112.09
+
+
+DMN.A_SIQlm <- lm(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED) 
+summary(DMN.A_SIQlm) #DMN.A                         -5.151      4.567  -1.128   0.2657 
+shapiro.test(DMN.A_SIQlm$residuals) #W = 0.90679, p-value = 0.0009226
+
+DMN.A_SIQ <- glm(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED) 
+summary(DMN.A_SIQ) #DMN.A                       -0.21634    0.05489  -3.941 8.11e-05 ***
+#AIC: 722.07
+
+DMN.A_SIQnb <- glm.nb(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED) 
+summary(DMN.A_SIQnb)  #DMN.A          -0.26007    0.16709  -1.557    0.120
+#AIC: 406.55
+
+DMN.A_SIQlm <- glm(SIQlog ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED) 
+summary(DMN.A_SIQlm) #DMN.A                        -0.1478     0.1901  -0.777    0.441 
+#AIC: 114.59
+
+
+DMN.V_SIQ <- lm(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.V_SIQ) #DMN.V                        -11.057      3.350  -3.300  0.00195 ** 
+shapiro.test(DMN.V_SIQ$residuals) #W = 0.95304, p-value = 0.04908
+
+DMN.V_SIQ <- glm(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED)
+summary(DMN.V_SIQ)  #DMN.V            -0.46761    0.04577 -10.216  < 2e-16 ***
+#AIC: 627.82
+
+DMN.V_SIQnb <- glm.nb(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.V_SIQnb) #DMN.V            -0.47022    0.12359  -3.805 0.000142 ***
+#AIC: 396.06
+
+DMN.V_SIQlm <- glm(SIQlog ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.V_SIQlm) #DMN.V           -0.42291    0.14083  -3.003  0.00444 ** 
+#AIC: 105.95
+
+
+DMN.P_SIQ <- lm(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.P_SIQ) #DMN.P                         -4.118      3.416  -1.206   0.2345
+shapiro.test(DMN.P_SIQ$residuals) #W = 0.90916, p-value = 0.001109
+
+DMN.P_SIQ <- glm(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med,family = "poisson", data = MDD_USED)
+summary(DMN.P_SIQ) #DMN.P                       -0.15882    0.03867  -4.107 4.01e-05 ***
+#AIC: 721.22
+
+DMN.P_SIQnb <- glm.nb(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.P_SIQnb) #DMN.P    -0.12466    0.12532  -0.995    0.320 
+#AIC: 407.56
+
+DMN.P_SIQlm <- glm(SIQlog ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.P_SIQlm) #DMN.P                       -0.09715    0.14266  -0.681    0.500
+#AIC: 114.75
+
+
+#With CDRS-R t-scores
+SN.Ins_SIQcovlm <- lm(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(SN.Ins_SIQcovlm) #SN.Ins                           -5.0213     3.3816  -1.485  0.14505 
+shapiro.test(SN.Ins_SIQcovlm$residuals) #W = 0.96115, p-value = 0.1057
+
+SN.Ins_SIQcov <- glm(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED)
+summary(SN.Ins_SIQcov) #SN.Ins                         -0.222600   0.044840  -4.964 6.89e-07 ***
+#AIC: 658.82
+
+SN.Ins_SIQcovnb <- glm.nb(SIQ ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(SN.Ins_SIQcovnb) #SN.Ins          -0.22645    0.12495  -1.812   0.0699 .
+#AIC: 403.25
+
+SN.Ins_SIQcovloglm <- glm(SIQlog ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(SN.Ins_SIQcovloglm) #SN.Ins           -0.21488    0.14636  -1.468    0.149
+#AIC: 113.79
+
+DMN.A_SIQcovlm <- lm(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.A_SIQcovlm) #DMN.A                            -3.7559     4.4422  -0.846   0.4026  
+shapiro.test(DMN.A_SIQcovlm$residuals) #W = 0.96612, p-value = 0.1689
+
+DMN.A_SIQcov <- glm(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED) 
+summary(DMN.A_SIQcov) #DMN.A                          -0.164614   0.055867  -2.947 0.003213 ** 
+#AIC: 675.69
+
+DMN.A_SIQcovnb <- glm.nb(SIQ ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED) 
+summary(DMN.A_SIQcovnb) #DMN.A                 -0.18244    0.16316  -1.118   0.2635 
+#AIC: 404.99
+
+DMN.A_SIQcovlm <- glm(SIQlog ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED) 
+summary(DMN.A_SIQcovlm) #DMN.A                          -0.12363    0.19284  -0.641    0.525 
+#AIC: 115.77
+
+DMN.V_SIQcovlm <- lm(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.V_SIQcovlm) #DMN.V                            -9.3772     3.5531  -2.639  0.01161 * 
+shapiro.test(DMN.V_SIQcovlm$residuals) #W = 0.97203, p-value = 0.291
+
+DMN.V_SIQcov <- glm(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED)
+summary(DMN.V_SIQcov) #DMN.V                          -0.398785   0.049199  -8.106 5.25e-16 ***
+#AIC: 616.3
+
+DMN.V_SIQcovnb <- glm.nb(SIQ ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.V_SIQcovnb) #DMN.V        -0.424346   0.131401  -3.229  0.00124 **
+#AIC: 397.55
+
+DMN.V_SIQcovlm <- glm(SIQlog ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.V_SIQcovlm) #DMN.V              -4.245e-01  1.525e-01  -2.784  0.00801 ** 
+#AIC: 107.95
+
+DMN.P_SIQcovlm <- lm(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.P_SIQcovlm) #DMN.P                            -2.5501     3.3869  -0.753   0.4557
+shapiro.test(DMN.P_SIQcovlm$residuals) #W = 0.95727, p-value = 0.07311
+
+DMN.P_SIQcov <- glm(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F),family = "poisson", data = MDD_USED)
+summary(DMN.P_SIQcov) #DMN.P                          -0.076031   0.040364  -1.884 0.059616 . 
+#AIC: 680.98
+
+DMN.P_SIQcovnb <- glm.nb(SIQ ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.P_SIQcovnb) #DMN.P            -0.04110    0.12457  -0.330   0.7414 
+#AIC: 405.98
+
+DMN.P_SIQcovlm <- glm(SIQlog ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.P_SIQcovlm) #DMN.P             -0.06986    0.14710  -0.475    0.637 
+#AIC: 115.98
+
+###NSSI Freq Past Month - SN-Ins, DMN.A, DMN.V, and DMN.P### - getting errors with negative binomial - not sure what next step would be - probably need zero inflated but not sure how to run this in R - TH?
+
+#Without CDRS-R t-score
+SN.Ins_SITBI <- lm(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(SN.Ins_SITBI) #SN.Ins                        -4.121      2.745  -1.502   0.1407  
+shapiro.test(SN.Ins_SITBI$residuals) #W = 0.48799, p-value = 1.042e-11
+
+SN.Ins_SITBI <- glm(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED) 
+summary(SN.Ins_SITBI) #SN.Ins                       -1.2266     0.1386  -8.851  < 2e-16 ***
+#AIC: 605.85
+
+SN.Ins_SITBInb <- glm.nb(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(SN.Ins_SITBInb)#SN.INs -3.1681     0.7916  -4.002 6.28e-05 ***
+#AIC: 165.13
+
+DMN.A_SITBI <- lm(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.A_SITBI) #DMN.A                        -3.3779     3.7454  -0.902    0.372
+shapiro.test(DMN.A_SITBI$residuals) #W = 0.46, p-value = 4.769e-12
+
+DMN.A_SITBI <- glm(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED) 
+summary(DMN.A_SITBI) #DMN.A                        -0.81174    0.14459  -5.614 1.98e-08 ***
+#AIC: 674.25
+
+DMN.A_SITBInb <- glm.nb(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED) 
+summary(DMN.A_SITBInb) #DMN.A       -1.33401    0.73199  -1.822   0.0684 .
+#AIC: 172.33
+
+DMN.V_SITBI <- lm(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.V_SITBI) #DMN.V                        -4.1705     2.9970  -1.392   0.1714  
+shapiro.test(DMN.V_SITBI$residuals) #W = 0.50674, p-value = 1.788e-11
+
+DMN.V_SITBI <- glm(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, family = "poisson", data = MDD_USED)
+summary(DMN.V_SITBI)  #DMN.V                        -1.42288    0.16227  -8.769  < 2e-16 ***
+#AIC: 599.35
+
+DMN.V_SITBInb <- glm.nb(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.V_SITBInb)  #DMN.V          -1.25055    0.60508  -2.067  0.03876 * 
+#AIC: 174.92
+
+DMN.P_SITBI <- lm(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, data = MDD_USED)
+summary(DMN.P_SITBI) #DMN.P                        -1.0803     2.8561  -0.378    0.707 
+shapiro.test(DMN.P_SITBI$residuals) #W = 0.44193, p-value = 2.924e-12
+
+DMN.P_SITBI <- glm(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med,family = "poisson", data = MDD_USED)
+summary(DMN.P_SITBI) #DMN.P                        -0.31390    0.09508  -3.302 0.000962 ***
+#AIC: 699.63
+
+DMN.P_SITBInb <- glm.nb(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med,data = MDD_USED)
+summary(DMN.P_SITBInb) #DMN.P             -0.2019     0.5581  -0.362   0.7175  
+#AIC: 175.08
+
+#With CDRS-R t-score
+SN.Ins_SITBIcov <- lm(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med + scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(SN.Ins_SITBIcov) #SN.Ins                          -1.9349     2.6428  -0.732  0.46824  
+shapiro.test(SN.Ins_SITBIcov$residuals) #W = 0.62958, p-value = 9.198e-10
+
+SN.Ins_SITBIcov <- glm(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED) 
+summary(SN.Ins_SITBIcov) #SN.Ins                         -0.69540    0.16536  -4.205 2.61e-05 ***
+#AIC: 328.05
+
+SN.Ins_SITBInbcov <- glm.nb(SITBI_PastMonth_Composite ~ SN.Ins + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(SN.Ins_SITBInbcov)#SN.Ins                         -1.98381    0.63752  -3.112  0.00186 **
+#AIC: 160.76
+
+DMN.A_SITBIcov <- lm(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.A_SITBIcov) #DMN.A                           -1.7526     3.4499  -0.508   0.6142 
+shapiro.test(DMN.A_SITBIcov$residuals) #W = 0.62608, p-value = 8.128e-10
+
+DMN.A_SITBIcov <- glm(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED) 
+summary(DMN.A_SITBIcov) #DMN.A                           -0.73954    0.19009  -3.890  0.00010 ***
+#AIC: 331.79
+
+DMN.A_SITBInbcov <- glm.nb(SITBI_PastMonth_Composite ~ DMN.A + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED) 
+summary(DMN.A_SITBInbcov) #DMN.A                           -0.53136    0.64964  -0.818 0.413393  
+#AIC: 166.83
+
+DMN.V_SITBIcov <- lm(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.V_SITBIcov) #DMN.V                           -1.0933     2.9689  -0.368   0.7146  
+shapiro.test(DMN.V_SITBIcov$residuals) #W = 0.63189, p-value = 9.982e-10
+
+DMN.V_SITBIcov <- glm(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), family = "poisson", data = MDD_USED)
+summary(DMN.V_SITBIcov)  #DMN.V                           -0.51375    0.20691  -2.483 0.013030 *
+#AIC: 342.36
+
+DMN.V_SITBInbcov <- glm.nb(SITBI_PastMonth_Composite ~ DMN.V + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.V_SITBInbcov)  #DMN.V                           0.44017    0.56874   0.774 0.438965  
+#IC: 168.37
+
+DMN.P_SITBIcov <- lm(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F), data = MDD_USED)
+summary(DMN.P_SITBIcov) #DMN.P                            0.9227     2.6585   0.347  0.73031 
+shapiro.test(DMN.P_SITBIcov$residuals) #W = 0.63655, p-value = 1.179e-09
+
+DMN.P_SITBIcov <- glm(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F),family = "poisson", data = MDD_USED)
+summary(DMN.P_SITBIcov) #DMN.P                           0.73653    0.13725   5.366 8.04e-08 ***
+#AIC: 313.56
+
+DMN.P_SITBInbcov <- glm.nb(SITBI_PastMonth_Composite ~ DMN.P + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med+ scale(CDRSR_tscore, scale = F),data = MDD_USED)
+summary(DMN.P_SITBInbcov) #DMN.P                           0.31637    0.49747   0.636 0.524803 
+#AIC: 166.91
+
+```
+
+#8) Seed to Seed NSSI/SI Group Comparisons 
+```{r}
+###Seed to Seed SI Group Comparisons####
+
+#setting up contrasts for the SI analyses
+
+ICA_Gold$SI_Group <- as.character(ICA_Gold$SI_Group)
+ICA_Gold$SI_Group <- factor(ICA_Gold$SI_Group, levels = c("si", "dep", "hc"), ordered=FALSE)
+levels(ICA_Gold$SI_Group) #level order: si, dep, hc
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$SI_Group)<-my.simple 
+contrasts(ICA_Gold$SI_Group)
+#2 is si v. dep, 3 is si v. hc
+
+#DMN.P_CEN.L
+DMN.P_CEN.L_SI <- lm(DMN.P_CEN.L ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.L_SI)
+
+#DMN.P_CEN.R
+DMN.P_CEN.R_SI <- lm(DMN.P_CEN.R ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.R_SI)
+
+#DMN.V_CEN.L
+DMN.V_CEN.L_SI <- lm(DMN.V_CEN.L ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.L_SI)
+
+#DMN.V_CEN.R
+DMN.V_CEN.R_SI <- lm(DMN.V_CEN.R ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.R_SI)
+
+#DMN.A_CEN.L
+DMN.A_CEN.L_SI <- lm(DMN.A_CEN.L ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_CEN.L_SI)
+
+#DMN.A_CEN.R
+DMN.A_CEN.R_SI <- lm(DMN.A_CEN.R ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_CEN.R_SI)
+
+#SN.ACC_CEN.L
+SN.ACC_CEN.L_SI <- lm(SN.ACC_CEN.L ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_CEN.L_SI)
+
+#SN.ACC_CEN.R
+SN.ACC_CEN.R_SI <- lm(SN.ACC_CEN.R ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_CEN.R_SI)
+
+#SN.Ins_CEN.L
+SN.Ins_CEN.L_SI <- lm(SN.Ins_CEN.L ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_CEN.L_SI)
+
+#SN.Ins_CEN.R
+SN.Ins_CEN.R_SI <- lm(SN.Ins_CEN.R ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_CEN.R_SI)
+
+#SN.ACC_SN.Ins
+SN.ACC_SN.Ins_SI <- lm(SN.ACC_SN.Ins ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_SN.Ins_SI)
+
+#SN.ACC_DMN.V
+SN.ACC_DMN.V_SI <- lm(SN.ACC_DMN.V ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.V_SI)
+
+#SN.ACC_DMN.A
+SN.ACC_DMN.A_SI <- lm(SN.ACC_DMN.A ~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.A_SI)
+
+#SN.ACC_DMN.P
+SN.ACC_DMN.P_SI <- lm(SN.ACC_DMN.P~ SI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.P_SI)
+
+###Seed to Seed NSSI Group Comparisons####
+
+#setting up contrasts for the NSSI analyses
+ICA_Gold$NSSI_Group <- relevel(ICA_Gold$NSSI_Group, ref = "nssi")
+levels(ICA_Gold$NSSI_Group) #level order: nssi, dep, hc
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$NSSI_Group)<-my.simple #2 is to dep, 3 is to hc
+contrasts(ICA_Gold$NSSI_Group)
+#2 is nssi v. dep, 3 is nssi v. hc
+
+#DMN.P_CEN.L
+DMN.P_CEN.L_NSSI <- lm(DMN.P_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.L_NSSI)
+
+#DMN.P_CEN.R
+DMN.P_CEN.R_NSSI <- lm(DMN.P_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.R_NSSI)
+
+#DMN.V_CEN.L
+DMN.V_CEN.L_NSSI <- lm(DMN.V_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.L_NSSI)
+
+#DMN.V_CEN.R
+DMN.V_CEN.R_NSSI <- lm(DMN.V_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.R_NSSI)
+
+#DMN.A_CEN.L
+DMN.A_CEN.L_NSSI <- lm(DMN.A_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_CEN.L_NSSI)
+
+#DMN.A_CEN.R
+DMN.A_CEN.R_NSSI <- lm(DMN.A_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.A_CEN.R_NSSI)
+
+#SN.ACC_CEN.L
+SN.ACC_CEN.L_NSSI <- lm(SN.ACC_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_CEN.L_NSSI)
+
+#SN.ACC_CEN.R
+SN.ACC_CEN.R_NSSI <- lm(SN.ACC_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_CEN.R_NSSI)
+
+#SN.Ins_CEN.L
+SN.Ins_CEN.L_NSSI <- lm(SN.Ins_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_CEN.L_NSSI)
+
+#SN.Ins_CEN.R
+SN.Ins_CEN.R_NSSI <- lm(SN.Ins_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.Ins_CEN.R_NSSI)
+
+#SN.ACC_SN.Ins
+SN.ACC_SN.Ins_NSSI <- lm(SN.ACC_SN.Ins ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_SN.Ins_NSSI)
+
+#SN.ACC_DMN.V
+SN.ACC_DMN.V_NSSI <- lm(SN.ACC_DMN.V ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.V_NSSI)
+
+#SN.ACC_DMN.A
+SN.ACC_DMN.A_NSSI <- lm(SN.ACC_DMN.A ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.A_NSSI)
+
+#SN.ACC_DMN.P
+SN.ACC_DMN.P_NSSI <- lm(SN.ACC_DMN.P~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(SN.ACC_DMN.P_NSSI)
+
+#setting up post hoc contrasts for the NSSI analyses
+
+ICA_Gold$NSSI_Group <- relevel(ICA_Gold$NSSI_Group, ref = "hc")
+levels(ICA_Gold$NSSI_Group) #level order: "hc"   "nssi" "dep"
+c <-contr.treatment(3)
+my.coding<-matrix(rep(1/3, 6), ncol=2)
+my.simple<-c-my.coding
+contrasts(ICA_Gold$NSSI_Group)<-my.simple 
+contrasts(ICA_Gold$NSSI_Group)
+#2 is hc v. nssi, 3 is hc. v dep
+
+#DMN.P_CEN.L
+DMN.P_CEN.L_NSSI_ph <- lm(DMN.P_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.L_NSSI_ph)
+
+#DMN.P_CEN.R
+DMN.P_CEN.R_NSSI_ph <- lm(DMN.P_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.P_CEN.R_NSSI_ph)
+
+#DMN.V_CEN.R
+DMN.V_CEN.R_NSSI_ph <- lm(DMN.V_CEN.R ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.R_NSSI_ph)
+
+#DMN.V_CEN.L
+DMN.V_CEN.L_NSSI_ph <- lm(DMN.V_CEN.L ~ NSSI_Group + scale(Age.at.V2, scale=F) + Sex + scale(motion,scale=F) + Current_Med, ICA_Gold)
+summary(DMN.V_CEN.L_NSSI_ph)
+
+```
