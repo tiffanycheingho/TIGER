@@ -1,0 +1,688 @@
+---
+title: "TIGER qT1 Project"
+author: "Tiffany Ho & Lucinda Sisk"
+date: "3/1/2021"
+output:
+  pdf_document: default
+  html_document: defaults
+---
+
+```{r setup, include=FALSE}
+
+library(corrplot)
+library(foreign)
+library(dplyr)
+library(interactions)
+library(ggsignif)
+library(parameters) #from the package easystats #(https://www.rdocumentation.org/packages/easystats/versions/0.1.2)
+library(heplots) #from the package heplots #(https://www.rdocumentation.org/packages/heplots/versions/1.3-8/topics/etasq)
+library(webshot)
+library(effectsize)
+library(interactions)
+library(jtools)
+library(sandwich)
+```
+
+```{r, tidy = TRUE}
+master <- read.csv('TIGER_qT1_MASTER_FINAL.csv')
+```
+
+```{r, tidy = TRUE}
+#Convert data types to numeric, z-score R1 variables, convert categorical variables to factor form
+master_norm <- master %>% 
+  mutate("MDD" = as.factor(Group)) %>% 
+  mutate("Sex" = as.factor(Sex)) %>% 
+  mutate("age" = Age.at.V2) %>% 
+  mutate("Study" = as.factor(Study))
+
+#Drop participants with a non-MDD psychiatric diagnosis
+master_noctl <- subset(master_norm, Group != 3)
+master_noctl$MDD_dummy<-as.numeric(master_noctl$MDD)
+
+#Subset dataset by biological sex
+girls <- subset(master_noctl, Sex == 2) 
+boys <- subset(master_noctl, Sex == 1)
+
+#Subset dataset by diagnosis
+mdd_sample <- subset(master_noctl, MDD == 1) 
+ctl_sample <- subset(master_noctl, MDD == 0)
+
+```
+
+```{r, tidy}
+#### Main effect of MDD diagnosis ####
+
+#main effect of MDD on Left UF
+mdd_lm1 <- lm(LUF_R1 ~ MDD+Sex + age + LUF_overhang + Left.UF.Tractlength , master_noctl)
+model_parameters(mdd_lm0, standardize="refit") 
+etasq(mdd_lm1 ,type=2)
+wilcox.test(residuals(mdd_lm0)) #V=1903, p=0.469
+plot(mdd_lm1)
+
+# Sensitivity Analyses
+
+#adding study as cov reduces significance
+summary(mdd_lm1c <- lm(LUF_R1 ~ MDD +Sex + age + LUF_overhang + Left.UF.Tractlength + Study, master_noctl)) #p=0.18
+
+#adding medication cov reduces significance
+summary(mdd_lm1c <- lm(LUF_R1 ~ MDD +Sex + age + LUF_overhang + Left.UF.Tractlength  + Current_Med_Psych, master_noctl)) #p=0.213
+
+#adding Tanner cov does not reduce significance
+summary(mdd_lm1c <- lm(LUF_R1 ~ MDD +Sex + age + LUF_overhang + Left.UF.Tractlength  + Tanner_Score, master_noctl)) #p<0.05
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#main effect of MDD on Right UF
+mdd_lm2 <- lm(RUF_R1 ~ MDD +Sex + age + RUF_overhang + Right.UF.Tractlength, master_noctl)
+model_parameters(mdd_lm1, standardize="refit") 
+etasq(mdd_lm2 ,type=2)
+wilcox.test(residuals(mdd_lm2)) #V = 1766, p-value = 0.9186
+plot(mdd_lm2)
+
+#adding study as cov reduces significance
+summary(mdd_lm2c <- lm(RUF_R1 ~ MDD +Sex + age +  RUF_overhang + Right.UF.Tractlength + Study, master_noctl)) 
+
+#adding medication as a cov  reduces significance
+summary(mdd_lm2c <- lm(RUF_R1 ~ MDD +Sex + age +  RUF_overhang + Right.UF.Tractlength  + Current_Med_Psych, master_noctl)) 
+
+#adding Tanner as a cov reduces significance 
+summary(mdd_lm2c <- lm(RUF_R1 ~ MDD +Sex + age +  RUF_overhang + Right.UF.Tractlength  + Tanner_Score, master_noctl)) 
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#main effect of MDD on CCminor (corpus callosum genu)
+mdd_lm3 <- lm(CCMin_R1 ~ MDD +Sex + age + CC.minor.Tractlength + CCMin_overhang, master_noctl)
+model_parameters(mdd_lm3, standardize="refit") 
+etasq(mdd_lm3 ,type=2)
+wilcox.test(residuals(mdd_lm3)) #V = 1809, p-value = 0.7662
+plot(mdd_lm3)
+
+#adding study as cov reduced significance 
+summary(mdd_lm3c <- lm(CCMin_R1 ~ MDD +Sex + age + CC.minor.Tractlength + CCMin_overhang + Study, master_noctl)) 
+
+#adding med as cov reduced significance
+summary(mdd_lm3c <- lm(CCMin_R1 ~ MDD +Sex + age + CC.minor.Tractlength + CCMin_overhang + Current_Med_Psych, master_noctl)) 
+
+#adding Tanner as cov reduced significance 
+summary(mdd_lm3c <- lm(CCMin_R1 ~ MDD +Sex + age + CC.minor.Tractlength + CCMin_overhang + Tanner_Score, master_noctl)) 
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#CCMajor - NOT SIG
+mdd_lm4 <- lm(CCMaj_R1 ~ MDD +Sex + age + CC.major.Tractlength + CCMaj_overhang,master_noctl)
+model_parameters(mdd_lm4, standardize="refit")
+wilcox.test(residuals(mdd_lm4)) #V = 2056, p-value = 0.156
+plot(mdd_lm4)
+
+#L CGC - NOT SIG
+mdd_lm5 <- lm(LCC_R1~ MDD +Sex + age + Left.Cingulate.Tractlength + LCC_overhang, master_noctl)
+model_parameters(mdd_lm5, standardize="refit") 
+wilcox.test(residuals(mdd_lm5)) #V = 1829, p-value = 0.6979
+plot(mdd_lm5)
+
+#R CGC - NOT SIG
+mdd_lm6 <- lm(RCC_R1~ MDD +Sex + age + Right.Cingulate.Tractlength + RCC_overhang, master_noctl)
+model_parameters(mdd_lm6, standardize="refit")
+wilcox.test(residuals(mdd_lm6)) #V = 1759, p-value = 0.9439
+plot(mdd_lm6)
+
+```
+
+```{r}
+#### Check for main effect of RADS scores instead of MDD diagnosis ####
+
+#Left UF - NOT SIG
+rads_lm1 <- lm(LUF_R1 ~ RADS_total +Sex + age + LUF_overhang + Left.UF.Tractlength , master_noctl)
+model_parameters(rads_lm1,standardize="refit") 
+wilcox.test(residuals(rads_lm1)) #V = 1888, p-value = 0.5118
+plot(rads_lm1)
+
+#Right UF - NOT SIG
+rads_lm2 <- lm(RUF_R1 ~ RADS_total +Sex + age +  RUF_overhang + Right.UF.Tractlength, master_noctl)
+model_parameters(rads_lm2,standardize="refit") 
+wilcox.test(residuals(rads_lm2)) #V = 1888, p-value = 0.5118
+plot(rads_lm2)
+
+#CCMinor - NOT SIG
+rads_lm3 <- lm(CCMin_R1 ~ RADS_total +Sex + age + CC.minor.Tractlength + CCMin_overhang, master_noctl)
+model_parameters(rads_lm3, standardize="refit") 
+wilcox.test(residuals(rads_lm3)) #V = 1807, p-value = 0.7731
+plot(rads_lm3)
+
+#CCMajor - NOT SIG
+rads_lm4 <- lm(CCMaj_R1 ~ RADS_total +Sex + age + CC.major.Tractlength + CCMaj_overhang, master_noctl)
+model_parameters(rads_lm4, standardize="refit") 
+wilcox.test(residuals(rads_lm4)) #V = 2047, p-value = 0.1682
+plot(rads_lm4)
+
+#L CGC - NOT SIG
+rads_lm5 <- lm(LCC_R1~ RADS_total +Sex + age + Left.Cingulate.Tractlength + LCC_overhang, master_noctl)
+model_parameters(rads_lm5, standardize="refit") 
+wilcox.test(residuals(rads_lm5)) #V = 1799, p-value = 0.8011
+plot(rads_lm5)
+
+#R CGC - NOT SIG
+rads_lm6 <- lm(RCC_R1~ RADS_total +Sex + age + Right.Cingulate.Tractlength + RCC_overhang, master_noctl)
+model_parameters(rads_lm6, standardize="refit") 
+wilcox.test(residuals(rads_lm6)) #V = 1763, p-value = 0.9295
+plot(rads_lm6)
+
+```
+
+
+
+```{r}
+### Check whether interactions between MDD and sex are associated with R1 ####
+
+#Sex moderates MDD differences in LUF R1
+mdd_int1 <- lm(LUF_R1 ~ MDD * Sex + age +  LUF_overhang + Left.UF.Tractlength, master_noctl) 
+model_parameters(mdd_int1, standardize="refit")
+etasq(mdd_int1 ,type=3)
+wilcox.test(residuals(mdd_int1)) #V = 1933, p-value = 0.3896
+plot(mdd_int1)
+
+mdd_int1d <- lm(LUF_R1 ~ MDD_dummy * Sex + age +  LUF_overhang + Left.UF.Tractlength, master_noctl) 
+
+#simple slope in girls
+sim_slopes(mdd_int1d, pred=MDD_dummy, modx=Sex, modx.values='2', digits=10, johnson_neyman = FALSE,data = master_noctl) 
+
+#simple slope in boys
+sim_slopes(mdd_int1d, pred=MDD_dummy, modx=Sex, modx.values='1', johnson_neyman = FALSE,data = master_noctl) 
+
+#adding study as cov does not change significance
+summary(mdd_int1c <- lm(LUF_R1 ~ MDD* Sex + age +  LUF_overhang + Left.UF.Tractlength + Study, master_noctl)) #p=0.0057
+
+#adding med as cov does not change significance
+summary(mdd_int1c <- lm(LUF_R1 ~ MDD* Sex + age +  LUF_overhang + Left.UF.Tractlength + Current_Med_Psych, master_noctl)) 
+
+#adding Tanner as cov does not change significance
+summary(mdd_int1c <- lm(LUF_R1 ~ MDD* Sex + age +  LUF_overhang + Left.UF.Tractlength + Tanner_Score, master_noctl)) 
+
+#within girl sensitivity analyses
+#cov for study - still sig
+summary(mdd_lm1_gc <- lm(LUF_R1 ~ MDD + age + LUF_overhang + Left.UF.Tractlength + Study, girls)) 
+
+#cov for med - still sig
+summary(mdd_lm1_gc <- lm(LUF_R1 ~ MDD + age + LUF_overhang + Left.UF.Tractlength + Current_Med_Psych, girls)) 
+
+#cov for Tanner - still sig
+summary(mdd_lm1_gc <- lm(LUF_R1 ~ MDD + age + LUF_overhang + Left.UF.Tractlength + Tanner_Score, girls)) 
+
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+# RUF - NOT SIG
+mdd_int2 <- lm(RUF_R1 ~ MDD* Sex + age +  RUF_overhang + Right.UF.Tractlength, master_noctl) 
+model_parameters(mdd_int2,standardize="refit") 
+wilcox.test(residuals(mdd_int2)) #V = 1795, p-value = 0.8151
+plot(mdd_int2)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#Sex moderates MDD differences in CCMin R1
+mdd_int3 <- lm(CCMin_R1 ~ MDD * Sex + age +  CCMin_overhang + CC.minor.Tractlength, master_noctl) 
+model_parameters(mdd_int3,standardize="refit")
+etasq(mdd_int3 ,type=3)
+wilcox.test(residuals(mdd_int3)) #V = 1827, p-value = 0.7046
+plot(mdd_int3)
+
+mdd_int3d <- lm(CCMin_R1 ~ MDD_dummy * Sex + age +  CCMin_overhang + CC.minor.Tractlength, master_noctl)
+#simple slope in girls
+sim_slopes(mdd_int3d, pred=MDD_dummy, modx=Sex, modx.values='2', johnson_neyman = FALSE,data = master_noctl) 
+
+#simple slope in boys
+sim_slopes(mdd_int3d, pred=MDD_dummy, modx=Sex, modx.values='1', johnson_neyman = FALSE,data = master_noctl) 
+
+#adding study as cov does not change significance
+summary(mdd_int3c <- lm(CCMin_R1 ~ MDD* Sex + age +  CCMin_overhang + CC.minor.Tractlength + Study, master_noctl)) 
+
+#adding med as cov does not change significance
+summary(mdd_int3c <- lm(CCMin_R1 ~ MDD* Sex + age +  CCMin_overhang + CC.minor.Tractlength + Current_Med_Psych, master_noctl)) 
+
+#adding Tanner as cov does not change significance
+summary(mdd_int3c <- lm(CCMin_R1 ~ MDD* Sex + age +  CCMin_overhang + CC.minor.Tractlength + Tanner_Score, master_noctl))
+
+#within girl sensitivity analysis
+#add study as cov - still sig
+summary(mdd_lm3_gc <- lm(CCMin_R1 ~ MDD + age + CC.minor.Tractlength + CCMin_overhang + Study, girls)) 
+
+#add med as cov - still sig
+summary(mdd_lm3_gc <- lm(CCMin_R1 ~ MDD + age + CC.minor.Tractlength + CCMin_overhang + Current_Med_Psych, girls))
+
+#add Tanner as cov - still sig
+summary(mdd_lm3_gc <- lm(CCMin_R1 ~ MDD + age + CC.minor.Tractlength + CCMin_overhang + Tanner_Score, girls)) 
+
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#CCMajor - NOT SIG
+mdd_int4 <- lm(CCMaj_R1 ~ MDD * Sex + age +  CCMaj_overhang + CC.major.Tractlength, master_noctl) 
+model_parameters(mdd_int4,standardize="refit") 
+wilcox.test(residuals(mdd_int4)) #V = 2057, p-value = 0.1546
+plot(mdd_int4)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#L CGC - NOT SIG
+mdd_int5 <- lm(LCC_R1 ~ MDD*Sex + age + Left.Cingulate.Tractlength + LCC_overhang, master_noctl)
+model_parameters(mdd_int5, standardize="refit") 
+wilcox.test(residuals(mdd_int5)) #V = 1844, p-value = 0.6482
+plot(mdd_int5)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#R CGC - NOT SIG
+mdd_int6 <- lm(RCC_R1 ~ MDD*Sex + age + Right.Cingulate.Tractlength + RCC_overhang, master_noctl)
+model_parameters(mdd_int6, standardize="refit") #
+wilcox.test(residuals(mdd_int6)) #V = 1764, p-value = 0.9258
+plot(mdd_int6)
+
+```
+
+```{r, tidy=True}
+
+### Check whether interactions between RADS and sex are associated with R1 ####
+
+#Sex moderates associations between RADS and LUF R1
+rads_int1 <- lm(LUF_R1 ~ RADS_total* Sex + age +  LUF_overhang + Left.UF.Tractlength, master_noctl) 
+model_parameters(rads_int1,standardize="refit") 
+etasq(rads_int1 ,type=3) 
+wilcox.test(residuals(rads_int1)) #V = 1885, p-value = 0.5206
+plot(rads_int1)
+
+#simple slope within girls
+sim_slopes(rads_int1, pred=RADS_total, modx=Sex, modx.values='2', johnson_neyman = FALSE,data = master_noctl) 
+
+#simple slope within boys
+sim_slopes(rads_int1, pred=RADS_total, modx=Sex, modx.values='1', johnson_neyman = FALSE,data = master_noctl) 
+
+#adding study as cov did not change significance
+summary(rads_int1c <- lm(LUF_R1 ~ RADS_total* Sex + age +  LUF_overhang + Left.UF.Tractlength + Study, master_noctl))
+
+#adding med as cov did reduce significance
+summary(rads_int1c <- lm(LUF_R1 ~ RADS_total* Sex + age +  LUF_overhang + Left.UF.Tractlength + Current_Med_Psych, master_noctl))
+
+#adding Tanner as cov did reduce significance
+summary(rads_int1c <- lm(LUF_R1 ~ RADS_total* Sex + age +  LUF_overhang + Left.UF.Tractlength + Tanner_Score, master_noctl))
+
+#within girl sensitivity analyses
+#cov for study - still sig
+summary(rads_lm1_gc <- lm(LUF_R1 ~ RADS_total + age + LUF_overhang + Left.UF.Tractlength + Study, girls)) 
+
+#add med as cov - still sig
+summary(rads_lm0_gc <- lm(LUF_R1 ~ RADS_total + age + LUF_overhang + Left.UF.Tractlength + Current_Med_Psych, girls)) 
+
+#add Tanner as cov - still sig
+summary(rads_lm0_gc <- lm(LUF_R1 ~ RADS_total + age + LUF_overhang + Left.UF.Tractlength + Tanner_Stage, girls)) 
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#RUF - NOT SIG
+rads_int2 <- lm(RUF_R1 ~ RADS_total* Sex + age +  RUF_overhang + Right.UF.Tractlength, master_noctl) 
+model_parameters(rads_int2,standardize="refit") 
+wilcox.test(residuals(rads_int2)) #V = 1775, p-value = 0.8863
+plot(rads_int2)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#CCMinor - NOT SIG
+rads_int3 <- lm(CCMin_R1 ~ RADS_total* Sex + age +  CCMin_overhang + CC.minor.Tractlength, master_noctl) 
+model_parameters(rads_int3,standardize="refit")
+wilcox.test(residuals(rads_int3)) #V = 1809, p-value = 0.7662
+plot(rads_int3)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#CCMajor - NOT SIG
+rads_int4 <- lm(CCMaj_R1 ~ RADS_total* Sex + age +  CCMaj_overhang + CC.major.Tractlength, master_noctl) 
+model_parameters(rads_int4,standardize="refit") 
+wilcox.test(residuals(rads_int4)) #V = 1775, p-value = 0.8863
+plot(rads_int4)
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#L CGC - NOT SIG
+rads_int5 <- lm(LCC_R1 ~ RADS_total*Sex + age + Left.Cingulate.Tractlength + LCC_overhang, master_noctl)
+model_parameters(rads_int5, standardize="refit") 
+wilcox.test(residuals(rads_int5)) #V = 1797, p-value = 0.8081
+plot(rads_int5) 
+
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+
+#R CGC - NOT SIG 
+rads_int6 <- lm(RCC_R1 ~ RADS_total*Sex + age + Right.Cingulate.Tractlength + RCC_overhang, master_noctl)
+model_parameters(rads_int6, standardize="refit") 
+wilcox.test(residuals(rads_int6)) #V = 1758, p-value = 0.9457
+plot(rads_int6) 
+
+
+```
+
+```{r}
+#rerunning all models with FA as outcome instead
+
+#MDD diff in UF FA
+mdd_fa1 <- lm(Left.UF.FA.mean ~ MDD + Sex+ age + Left.UF.Tractlength, master_noctl)
+model_parameters(mdd_fa1,standardize="refit")
+etasq(mdd_fa1,type=2)
+wilcox.test(residuals(mdd_fa1)) #V = 1678, p-value = 0.7696
+plot(mdd_fa1)
+
+#RUF - NOT SIG
+mdd_fa2 <- lm(Right.UF.FA.mean ~ MDD + Sex+ age + Right.UF.Tractlength, master_noctl)
+model_parameters(mdd_fa2,standardize="refit") 
+wilcox.test(residuals(mdd_fa2)) #V = 1749, p-value = 0.9801
+plot(mdd_fa2)
+
+#CCMinor - NOT SIG
+mdd_fa3 <- lm(CC.Minor.FA.mean ~ MDD + Sex+ age + CC.minor.Tractlength, master_noctl)
+model_parameters(mdd_fa3,standardize="refit")
+wilcox.test(residuals(mdd_fa3)) #V = 1736, p-value = 0.9765
+plot(mdd_fa3)
+
+#CCMajor - NOT SIG
+mdd_fa4 <- lm(CC.Major.FA.mean ~ MDD + Sex+ age + CC.major.Tractlength, master_noctl)
+model_parameters(mdd_fa4,standardize="refit") 
+wilcox.test(residuals(mdd_fa4)) #V = 1814, p-value = 0.6046
+plot(mdd_fa4)
+
+#RCGC - NOT SIG
+mdd_fa5 <- lm(Right.Cingulum.Cingulate.FA.mean ~ MDD + Sex+ age + Right.Cingulate.Tractlength, master_noctl)
+model_parameters(mdd_fa5,standardize="refit") 
+wilcox.test(residuals(mdd_fa5)) #V = 1786, p-value = 0.847
+plot(mdd_fa5)
+
+#LCGC - NOT SIG
+mdd_fa6 <- lm(Left.Cingulum.Cingulate.FA.mean ~ MDD + Sex+ age + Left.Cingulate.Tractlength, master_noctl)
+model_parameters(mdd_fa6,standardize="refit") 
+wilcox.test(residuals(mdd_fa6)) #V = 1826, p-value = 0.708
+plot(mdd_fa6)
+
+#Sex interactions in predicting FA - all not significant
+
+mdd_fa_int1 <- lm(Left.UF.FA.mean ~ MDD*Sex+ age + Left.UF.Tractlength, master_noctl)
+model_parameters(mdd_fa_int1,standardize="refit") 
+wilcox.test(residuals(mdd_fa_int1)) #V = 1684, p-value = 0.7905
+plot(mdd_fa_int1)
+
+mdd_fa_int2 <- lm(Right.UF.FA.mean ~ MDD*Sex+ age + Right.UF.Tractlength, master_noctl)
+model_parameters(mdd_fa_int2,standardize="refit") 
+wilcox.test(residuals(mdd_fa_int2)) #V = 1743, p-value = 1
+plot(mdd_fa_int2)
+
+mdd_fa_int3 <- lm(CC.Minor.FA.mean ~ MDD*Sex+ age + CC.minor.Tractlength, master_noctl)
+model_parameters(mdd_fa_int3,standardize="refit") 
+wilcox.test(residuals(mdd_fa_int3)) #V = 1730, p-value = 0.9547
+plot(mdd_fa_int3)
+
+mdd_fa_int4 <- lm(CC.Major.FA.mean ~ MDD + Sex+ age + CC.major.Tractlength, master_noctl)
+model_parameters(mdd_fa_int4,standardize="refit") #V = 1730, p-value = 0.9547
+wilcox.test(residuals(mdd_fa_int4))
+plot(mdd_fa_int4)
+
+mdd_fa_int5 <- lm(Right.Cingulum.Cingulate.FA.mean ~ MDD*Sex+ age + Right.Cingulate.Tractlength, master_noctl)
+model_parameters(mdd_fa_int5,standardize="refit") 
+wilcox.test(residuals(mdd_fa_int5)) #V = 1783, p-value = 0.8577
+plot(mdd_fa_int5)
+
+mdd_fa_int6 <- lm(Left.Cingulum.Cingulate.FA.mean ~ MDD*Sex+ age + Left.Cingulate.Tractlength, master_noctl)
+model_parameters(mdd_fa_int6,standardize="refit") 
+wilcox.test(residuals(mdd_fa_int6)) #V = 1812, p-value = 0.7558
+plot(mdd_fa_int6)
+
+```
+
+```{r}
+
+# No significant associations between FA and RADS
+
+rads_fa1 <- lm(Left.UF.FA.mean ~ RADS_total + Sex+ age + Left.UF.Tractlength, master_noctl)
+model_parameters(rads_fa1,standardize="refit") 
+wilcox.test(residuals(rads_fa1)) #V = 1706, p-value = 0.8684
+plot(rads_fa1)
+
+rads_fa2 <- lm(Right.UF.FA.mean ~ RADS_total + Sex+ age + Right.UF.Tractlength, master_noctl)
+model_parameters(rads_fa2,standardize="refit") 
+wilcox.test(residuals(rads_fa2)) #V = 1753, p-value = 0.9656
+plot(rads_fa2)
+
+rads_fa3 <- lm(CC.Minor.FA.mean ~ RADS_total + Sex+ age + CC.minor.Tractlength, master_noctl)
+model_parameters(rads_fa3,standardize="refit")
+wilcox.test(residuals(rads_fa3)) #V = 1731, p-value = 0.9584
+plot(rads_fa3)
+
+rads_fa4 <- lm(CC.Major.FA.mean ~ RADS_total + Sex+ age + CC.major.Tractlength, master_noctl)
+model_parameters(rads_fa4,standardize="refit") 
+wilcox.test(residuals(rads_fa4)) #V = 1808, p-value = 0.6241
+plot(rads_fa4)
+
+rads_fa5 <- lm(Right.Cingulum.Cingulate.FA.mean ~ RADS_total + Sex+ age + Right.Cingulate.Tractlength, master_noctl)
+model_parameters(rads_fa5,standardize="refit") 
+wilcox.test(residuals(rads_fa5)) #V = 1754, p-value = 0.962
+plot(rads_fa5)
+
+rads_fa6 <- lm(Left.Cingulum.Cingulate.FA.mean ~ RADS_total + Sex+ age + Left.Cingulate.Tractlength, master_noctl)
+model_parameters(rads_fa6,standardize="refit") 
+wilcox.test(residuals(rads_fa6)) #V = 1828, p-value = 0.7012
+plot(rads_fa6)
+
+```
+
+```{r}
+
+#No significant interactions between sex and RADS on FA
+
+rads_faint1 <- lm(Left.UF.FA.mean ~ RADS_total*Sex+ age + Left.UF.Tractlength, master_noctl)
+model_parameters(rads_faint1,standardize="refit") 
+wilcox.test(residuals(rads_faint1)) #V = 1700, p-value = 0.847
+plot(rads_faint1)
+
+rads_faint2 <- lm(Right.UF.FA.mean ~ RADS_total*Sex+ age + Right.UF.Tractlength, master_noctl)
+model_parameters(rads_int2,standardize="refit") 
+wilcox.test(residuals(rads_faint2)) #V = 1758, p-value = 0.9475
+plot(rads_faint2)
+
+rads_faint3 <- lm(CC.Minor.FA.mean ~ RADS_total*Sex+ age + CC.minor.Tractlength, master_noctl)
+model_parameters(rads_faint3,standardize="refit")
+wilcox.test(residuals(rads_faint3)) #V = 1733, p-value = 0.9656
+plot(rads_faint3)
+
+rads_faint4 <- lm(CC.Major.FA.mean ~ RADS_total*Sex+ age + CC.major.Tractlength, master_noctl)
+model_parameters(rads_faint4,standardize="refit") 
+wilcox.test(residuals(rads_faint4)) #V = 1795, p-value = 0.6672
+plot(rads_faint4)
+
+rads_faint5 <- lm(Right.Cingulum.Cingulate.FA.mean ~ RADS_total*Sex+ age + Right.Cingulate.Tractlength, master_noctl)
+model_parameters(rads_faint5,standardize="refit") 
+wilcox.test(residuals(rads_faint5)) #V = 1710, p-value = 0.8827
+plot(rads_faint5)
+
+rads_faint6 <- lm(Left.Cingulum.Cingulate.FA.mean ~ RADS_total*Sex+ age + Left.Cingulate.Tractlength, master_noctl)
+model_parameters(rads_faint6,standardize="refit") 
+wilcox.test(residuals(rads_faint6))
+plot(rads_faint6)
+
+```
+
+
+Data Visualizations
+
+
+```{r, tidy=True}
+#Figure 2 in paper 
+corr_samp <- master_noctl %>% 
+  select(age, Tanner_Score, RADS_total, LCC_R1, RCC_R1, LUF_R1, RUF_R1, CCMin_R1, CCMaj_R1, Global_R1, age, Tanner_Score,
+         Left.Cingulum.Cingulate.FA.mean, Right.Cingulum.Cingulate.FA.mean, 
+         Left.UF.FA.mean, Right.UF.FA.mean,CC.Minor.FA.mean, CC.Major.FA.mean, average.motion) %>% 
+  na.omit()
+
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(corr_samp)
+
+corr_mat <- cor(corr_samp)
+
+corrplot(corr_mat,p.mat=p.mat,insig="blank", sig.level=0.05,
+         tl.cex=.5,
+         tl.col='black',
+         tl.srt = 45,type="upper",method="circle") 
+
+
+```
+
+```{r, tidy=True}
+## Figure Plots
+### Interaction Scatter plot
+mdd_lm1_resid <- lm(RADS_total ~ age +  LUF_overhang + Left.UF.Tractlength, master_noctl) 
+master_noctl$RADS_resid <- mdd_lm1_resid$residuals
+master_noctl <- master_noctl %>% 
+  mutate(Sex_MF = dplyr::recode(Sex, "1" = "Male", "2" = "Female"))
+
+
+(p = ggplot(master_noctl, aes(x = RADS_resid, y = LUF_R1, color = Sex_MF)) +
+  geom_point() + 
+  scale_color_manual(values = c("#996900", "#ffaf00")) +
+  stat_smooth(method = "lm") + 
+  xlab('  \n RADS Score (residuals)') +
+  ylab('Left Uncinate R1 Value') +
+  labs(color = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+(p1 = ggplot(master_noctl, aes(x = MDD, y = LUF_R1, fill = Sex_MF)) +
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#996900", "#ffaf00")) +
+  stat_smooth(method = "lm") + 
+  xlab('Diagnosis') +
+  ylab('Left Uncinate R1 Value') +
+  labs(fill = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+(p2 = ggplot(master_noctl, aes(x = MDD, y = CCMin_R1, fill = Sex_MF)) +
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#336641", "#67cc82")) +
+  stat_smooth(method = "lm") + 
+  xlab('Diagnosis') +
+  ylab('Corpus Callosum Genu R1 Value') +
+  labs(fill = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/LeftUncinate_Sex_InteractionPlot.png',
+       plot=p,
+       width = 6,
+       height = 4)
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/LeftUncinate_MDD_BoxPlot.png',
+       plot=p1,
+       width = 6,
+       height = 4)
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/CCMinor_MDD_BoxPlot.png',
+       plot=p2,
+       width = 6,
+       height = 4)
+
+### Plots for figure S2
+
+(s = ggplot(master_noctl, aes(x = MDD, y = LUF_R1)) +
+  geom_boxplot(fill = '#e59d00') + 
+  # scale_fill_manual(values = c("#996900", "#ffaf00")) +
+  stat_smooth(method = "lm") + 
+  xlab('Diagnosis') +
+  ylab('Left Uncinate R1 Value') +
+  labs(fill = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+(s1 = ggplot(master_noctl, aes(x = MDD, y = RUF_R1)) +
+  geom_boxplot(fill = '#ffc74c') + 
+  # scale_fill_manual(values = c("#996900", "#ffaf00")) +
+  stat_smooth(method = "lm") + 
+  xlab('Diagnosis') +
+  ylab('Right Uncinate R1 Value') +
+  labs(fill = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+(s2 = ggplot(master_noctl, aes(x = MDD, y = CCMin_R1)) +
+  geom_boxplot(fill = "#67cc82") + 
+  # scale_fill_manual(values = c("#336641", "#67cc82")) +
+  stat_smooth(method = "lm") + 
+  xlab('Diagnosis') +
+  ylab('Corpus Callosum Genu R1 Value') +
+  # ggtitle('Group Differences in Corpus Callosum Genu R1 Values by Diagnostic Group') +
+  labs(fill = 'Sex') +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 12),
+        axis.title=element_text(size=16),
+        plot.title=element_text(size=20),
+        axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.title.x = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0))))
+
+
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/LeftUncinate_MDDMainEffect_BoxPlot.png',
+       plot=s,
+       width = 6,
+       height = 4)
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/RightUncinate_MDDMainEffect_BoxPlot.png',
+       plot=s1,
+       width = 6,
+       height = 4)
+ggsave('/Users/lucindasisk/Box/LS_Folders/SNAPLab/Projects/TIGER_qT1/Results/Figures/CCMinor_MDDMainEffect_BoxPlot.png',
+       plot=s2,
+       width = 6,
+       height = 4)
+
+```
+
+```{r, tidy=True}
+## Demographics
+library(arsenal)
+
+#creating demographics table
+master_noctl$Current_Med_Psych<-as.factor(master_noctl$Current_Med_Psych)
+master_noctl$Parent_Level_Education<-as.factor(master_noctl$Parent_Level_Education)
+master_noctl$Race<-as.factor(master_noctl$Race)
+master_noctl$Ethnicity<-as.factor(master_noctl$Ethnicity)
+master_noctl$Sex<-as.factor(master_noctl$Sex)
+master_noctl$Income_Data_Recoded<-as.factor(master_noctl$Income_Data_Recoded)
+
+dem_df <- master_noctl %>% 
+  select(-c(ID))
+
+dem_table <- tableby(Group ~ ., data = dem_df)
+summary(dem_table, title = "Demographic Data")
+
+```
+
+
+
+
