@@ -10,3 +10,5 @@ Ho et al. "Higher levels of pro-inflammatory cytokines are associated with highe
 Liu et al. "Functional and Structural Brain Connectivity of Default Mode, Central Executive, and Attentional Regions Predict Longitudinal Trajectories of Depression and Anxiety Symptoms in Adolescents with Major Depressive Disorder"
 
 qT1_analysis_HoSisk2021.Rmd refers to analytic pipeline used in Ho & Sisk et al. "Sex differences in myelin content of white matter tracts in adolescents with depression" (published in Neuropsychopharmacology, 2022)
+
+LCGA_xx.RMD scripts refer to the data organization, cluster selection, and statistical analyses forLiu et al. "Functional and Structural Brain Connectivity of Default Mode, Central Executive, and Attentional Regions Predict Longitudinal Trajectories of Depression and Anxiety Symptoms in Adolescents with Major Depressive Disorder" (published in BMC Psychiatry, 2026)
